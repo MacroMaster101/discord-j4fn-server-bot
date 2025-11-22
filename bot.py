@@ -12,7 +12,11 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID")
 
+# ---- INTENTS ----
 intents = discord.Intents.default()
+# Needed so the bot can read message content
+intents.message_content = True
+
 client = discord.Client(intents=intents)
 
 
@@ -64,6 +68,20 @@ async def update_status():
         activity = discord.Game(name=f"{sub_count:,} subs on YouTube")
 
     await client.change_presence(status=discord.Status.online, activity=activity)
+
+
+# ---- NEW: REPLY TO "hi" / "Hi." ----
+@client.event
+async def on_message(message: discord.Message):
+    # Don’t reply to ourselves or other bots
+    if message.author.bot:
+        return
+
+    # Clean message: remove spaces + .!? at the end, make lowercase
+    content = message.content.strip().lower().rstrip(".!?")
+
+    if content == "hi":
+        await message.channel.send(f"Hi {message.author.mention}! 👋")
 
 
 # Run bot
