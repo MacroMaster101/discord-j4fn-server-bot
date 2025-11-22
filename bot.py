@@ -105,7 +105,7 @@ async def on_message(message: discord.Message):
     content = message.content.strip().lower().rstrip(".!?")
 
     # Greetings (capitalization doesn't matter because we used lower())
-    greetings = ["hi", "hello", "hey", "yo", "sup"]
+    greetings = ["hi", "hello", "hey"]
 
     if content in greetings:
         await message.channel.send(
