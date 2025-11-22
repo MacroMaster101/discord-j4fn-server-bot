@@ -77,11 +77,16 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # Clean message: remove spaces + .!? at the end, make lowercase
+    # Normalize message (ignore capitalization + trailing punctuation)
     content = message.content.strip().lower().rstrip(".!?")
 
-    if content == "hi":
-        await message.channel.send(f"Hi {message.author.mention}! 👋")
+    # Trigger words
+    greetings = ["hi", "hello", "hey", "yo", "sup"]
+
+    if content in greetings:
+        await message.channel.send(
+            f"Hi {message.author.mention}! 👋 Welcome to our Discord server! This_is_a_emoji_Heart_3"
+        )
 
 
 # Run bot
