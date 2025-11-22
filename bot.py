@@ -85,7 +85,7 @@ async def on_message(message: discord.Message):
 
     if content in greetings:
         await message.channel.send(
-            f"Hi {message.author.mention}! 👋 Welcome to our Discord server! This_is_a_emoji_Heart_3"
+            f"Hi {message.author.mention}! 👋 Welcome to our Discord server! :This_is_a_emoji_Heart_3:"
         )
 
 
