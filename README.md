@@ -56,9 +56,6 @@ Rich embed greeting when new members join — configurable channel or auto-fallb
 
 ```
 discord-youtube-status-bot/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml      # Auto-deploy to Fly.io on push
 ├── bot.py                  # Main bot logic
 ├── Dockerfile              # Container image for Fly.io
 ├── fly.toml                # Fly.io config (rolling deploy, always-on)
@@ -140,12 +137,12 @@ flyctl deploy
 
 ### Auto-Deploy on GitHub Push
 
-The included GitHub Actions workflow (`.github/workflows/deploy.yml`) auto-deploys on every push to `main`.
+This repo uses **Fly.io's built-in GitHub integration** — every push to `main` triggers an automatic deployment.
 
 **One-time setup:**
-1. Generate a Fly.io deploy token: `flyctl tokens create deploy -x 999999h`
-2. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions**
-3. Add secret: Name = `FLY_API_TOKEN`, Value = your token
+1. Go to your app on [Fly.io Dashboard](https://fly.io/dashboard) → **Settings**
+2. Under **GitHub Repository Settings**, connect your repo
+3. Check ✅ **Auto-Deploy on push** and set the deploy branch to `main`
 
 ### Deployment Config Highlights
 
