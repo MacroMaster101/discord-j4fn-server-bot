@@ -1,175 +1,132 @@
-# Discord YouTube Status Bot
+# Discord YouTube Status Bot 🎮
 
-A Python Discord bot that displays a YouTube channel's subscriber count in its presence, shows server stats, and responds to commands.
+A feature-rich Discord bot built for **public gaming servers** — shows YouTube channel stats in its presence, welcomes new members, and includes fun & utility commands.
 
-## Features
+## ✨ Features
 
-- **YouTube Status** — Bot presence shows your channel's live subscriber count
-- **`!stats`** — Rich embed showing server members, channels, roles, boosts, **and** YouTube stats
-- **`!yt`** — Standalone YouTube channel stats (subs, views, videos)
-- **`!help`** — Lists all available commands
-- **Greetings** — Responds to `hi`, `hello`, `hey` with a welcome message
-- **Self-Ping Keep-Alive** — Built-in loop that pings its own URL every 4 minutes to prevent Render free-tier spin-down
-- **Health Endpoint** — `/health` route for external uptime monitors
+### 📊 Info Commands
+| Command | Description |
+|---|---|
+| `!stats` | Server stats + YouTube info in a rich embed |
+| `!yt` | YouTube channel stats (subs, views, videos) |
+| `!userinfo [@user]` | User profile, roles, join date |
+| `!avatar [@user]` | Display user's avatar |
+| `!servericon` | Display server icon |
+| `!ping` | Bot latency |
+| `!uptime` | How long the bot has been running |
 
-## How It Works
+### 🎮 Fun & Games
+| Command | Description |
+|---|---|
+| `!roll [sides]` | Roll a dice (default 6 sides) |
+| `!flip` | Flip a coin |
+| `!8ball <question>` | Magic 8-Ball fortune |
+| `!rps <rock\|paper\|scissors>` | Rock Paper Scissors vs the bot |
+| `!poll <question>` | Quick poll with 👍👎🤷 reactions |
 
-The bot uses the **YouTube Data API v3** to fetch channel statistics and updates its Discord presence every 5 minutes to display:
+### 💬 Auto Responses
+- **Greetings** — `hi`, `hello`, `hey`, `yo`, `sup`, `wassup` → random welcome reply
+- **GG** — `gg`, `gg wp`, `good game` → GG reaction + 🏆 emoji
 
-```
-212 subs on YouTube
-```
+### 🎉 Welcome System
+- Auto-sends a rich embed when a new member joins
+- Configurable welcome channel via `WELCOME_CHANNEL_ID`
+- Falls back to the server's system channel
 
-When a user types `!stats`, the bot replies with a rich embed containing full server information alongside YouTube channel data.
+### 🔴 YouTube Integration
+- Bot presence shows live subscriber count (updates every 5 min)
+- `!stats` and `!yt` commands pull real-time data from YouTube Data API v3
 
 ## Project Structure
 
-```text
+```
 discord-youtube-status-bot/
 ├── bot.py              # Main bot logic
+├── Dockerfile          # Container config for Fly.io
+├── fly.toml            # Fly.io deployment config
 ├── requirements.txt    # Python dependencies
-├── .gitignore          # Files excluded from Git
-└── README.md           # Project documentation
+├── .gitignore          # Git exclusions
+├── .dockerignore       # Docker exclusions
+└── README.md           # This file
 ```
 
 ## Requirements
 
 - Python 3.9+
-- A Discord bot token
-- A YouTube Data API v3 key
-- A YouTube channel ID
+- Discord bot token
+- YouTube Data API v3 key
+- YouTube channel ID
 
-## Installation
-
-1. Clone the repository:
+## Quick Start
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/discord-youtube-status-bot.git
 cd discord-youtube-status-bot
-```
-
-2. Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-## Environment Variables
-
-Create a `.env` file in the project root:
+Create a `.env` file:
 
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 YOUTUBE_API_KEY=your_youtube_api_key
 YOUTUBE_CHANNEL_ID=your_youtube_channel_id
+WELCOME_CHANNEL_ID=your_welcome_channel_id
 PORT=8080
-RENDER_EXTERNAL_URL=https://your-bot-name.onrender.com
 ```
 
 | Variable | Required | Description |
 |---|---|---|
-| `DISCORD_TOKEN` | ✅ | Bot token from the [Discord Developer Portal](https://discord.com/developers/applications) |
-| `YOUTUBE_API_KEY` | ✅ | API key for YouTube Data API v3 |
-| `YOUTUBE_CHANNEL_ID` | ✅ | ID of the YouTube channel to track |
-| `PORT` | ❌ | Port for the Flask server (default `8080`) |
-| `RENDER_EXTERNAL_URL` | ❌ | Your Render web-service URL — enables the self-ping keep-alive |
+| `DISCORD_TOKEN` | ✅ | From [Discord Developer Portal](https://discord.com/developers/applications) |
+| `YOUTUBE_API_KEY` | ✅ | YouTube Data API v3 key |
+| `YOUTUBE_CHANNEL_ID` | ✅ | YouTube channel to track |
+| `WELCOME_CHANNEL_ID` | ❌ | Channel for welcome messages (falls back to system channel) |
+| `PORT` | ❌ | Flask server port (default `8080`) |
 
-## Running the Bot
+Run locally:
 
 ```bash
 python bot.py
 ```
 
-On startup the bot will:
-1. Start the Flask web server on a background thread
-2. Log in to Discord
-3. Update its presence every 5 minutes
-4. Self-ping every 4 minutes (if `RENDER_EXTERNAL_URL` is set)
+## Discord Bot Setup
 
-## Bot Intents
-
-This bot requires these **Privileged Gateway Intents** enabled in the Discord Developer Portal:
+Enable these **Privileged Gateway Intents** in the [Developer Portal](https://discord.com/developers/applications) → Bot:
 
 | Intent | Why |
 |---|---|
-| Message Content | Read message text for commands |
-| Server Members | Accurate member counts in `!stats` |
-| Presence | Online / offline counts in `!stats` |
+| ✅ Message Content | Read commands |
+| ✅ Server Members | Member counts, userinfo, welcome |
+| ✅ Presence | Online/offline counts in !stats |
 
-> **How to enable:** Discord Developer Portal → Your App → Bot → Privileged Gateway Intents → Toggle each one ON.
+**Bot Permissions** — invite with these permissions:
+- Send Messages, Embed Links, Add Reactions, Read Message History, Use External Emojis
 
-## Commands
-
-| Command | Description |
-|---|---|
-| `!stats` | Server info + YouTube stats in one embed |
-| `!yt` | YouTube channel stats only |
-| `!help` | List available commands |
-| `hi` / `hello` / `hey` | Bot greets you back |
-
-## Deployment — Running 24/7
-
-### Option 1: Render Free Tier + Self-Ping (Current Setup)
-
-The bot already has a **built-in self-ping** that hits its own `/health` endpoint every 4 minutes. This prevents Render's free tier from spinning down the service.
-
-**Setup on Render:**
-1. Create a new **Web Service** → connect your GitHub repo
-2. Set **Build Command:** `pip install -r requirements.txt`
-3. Set **Start Command:** `python bot.py`
-4. Add all environment variables (including `RENDER_EXTERNAL_URL`)
-5. Deploy — the self-ping handles the rest
-
-> ⚠️ Render free tier still restarts services periodically and may have brief downtime windows. For truly 24/7 uptime, consider the options below.
-
-### Option 2: Railway (Recommended Free Alternative)
-
-[Railway](https://railway.app) offers a free tier with 500 hours/month (enough for ~20 days). Unlike Render, **it does not spin down**.
-
-1. Sign up at [railway.app](https://railway.app)
-2. Create a new project → Deploy from GitHub
-3. Add environment variables in the Railway dashboard
-4. Railway auto-detects Python and deploys
-
-### Option 3: Oracle Cloud Free Tier (Truly Free 24/7)
-
-Oracle Cloud offers **Always Free** VMs (1 GB RAM, 1 OCPU) — perfect for a small bot.
-
-1. Create an account at [cloud.oracle.com](https://cloud.oracle.com)
-2. Launch an Always Free compute instance (Ubuntu)
-3. SSH in, clone your repo, install Python
-4. Run with `screen` or `systemd`:
+## Deploy to Fly.io (24/7)
 
 ```bash
-# Using screen
-screen -S bot
-python bot.py
-# Ctrl+A, D to detach
+# Install flyctl
+# https://fly.io/docs/flyctl/install/
 
-# Or create a systemd service for auto-restart
-```
+# Set secrets
+flyctl secrets set DISCORD_TOKEN=xxx YOUTUBE_API_KEY=xxx YOUTUBE_CHANNEL_ID=xxx
 
-### Option 4: A Home PC / Raspberry Pi
+# Optionally set welcome channel
+flyctl secrets set WELCOME_CHANNEL_ID=xxx
 
-Run `python bot.py` on any always-on machine. Use `systemd`, `pm2`, or just `screen`/`tmux`.
-
-### Option 5: Fly.io Free Tier
-
-[Fly.io](https://fly.io) gives 3 shared-cpu VMs free. Add a `fly.toml` and deploy:
-
-```bash
-flyctl launch
-flyctl secrets set DISCORD_TOKEN=... YOUTUBE_API_KEY=... YOUTUBE_CHANNEL_ID=...
+# Deploy
 flyctl deploy
 ```
+
+The `fly.toml` is pre-configured with `auto_stop_machines = 'off'` and `min_machines_running = 1` so the bot **never shuts down**.
 
 ## Dependencies
 
 - `discord.py` — Discord API wrapper
-- `requests` — HTTP client for YouTube API
-- `python-dotenv` — Load `.env` files
-- `flask` — Lightweight web server for keep-alive
+- `requests` — YouTube API calls
+- `python-dotenv` — .env file support
+- `flask` — Keep-alive web server
 
-## Summary
+## License
 
-A lightweight Discord bot that bridges YouTube and Discord — showing your channel's live stats both in the bot's presence and through interactive commands, with built-in keep-alive for free-tier hosting.
+MIT — free to use and modify.
