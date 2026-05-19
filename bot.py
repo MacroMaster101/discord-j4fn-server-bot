@@ -157,8 +157,9 @@ async def update_status():
     statuses.append((discord.ActivityType.watching, f"👥 {total_members:,} members"))
     statuses.append((discord.ActivityType.watching, f"🟢 {total_online:,} online"))
 
-    if server_count > 1:
-        statuses.append((discord.ActivityType.playing, f"🎮 {server_count} servers"))
+    # Show server name
+    guild_name = client.guilds[0].name if client.guilds else "the server"
+    statuses.append((discord.ActivityType.watching, f"🎮 {guild_name}"))
 
     statuses.append((discord.ActivityType.playing, f"{PREFIX}help | Gaming 🎮"))
 

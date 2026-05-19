@@ -13,6 +13,7 @@ primary_region = 'iad'
   wait_timeout = '5m'
 
 [[checks]]
+  name = "health"
   grace_period = "30s"
   interval = "15s"
   method = "GET"
