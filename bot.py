@@ -52,7 +52,7 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID")
 WELCOME_CHANNEL_ID = os.getenv("WELCOME_CHANNEL_ID")  # optional
 
-PREFIX = "!"
+PREFIX = "$"
 
 intents = discord.Intents.default()
 intents.message_content = True
