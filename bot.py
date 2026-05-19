@@ -135,7 +135,7 @@ async def on_ready():
     update_status.start()
 
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=15)
 async def update_status():
     """Rotate bot presence between YT stats and server stats."""
     # Gather stats
@@ -152,7 +152,7 @@ async def update_status():
     statuses = []
 
     if sub_count is not None:
-        statuses.append((discord.ActivityType.watching, f"{sub_count:,} subs on YouTube"))
+        statuses.append((discord.ActivityType.watching, f"🔴 {sub_count:,} subs on YouTube"))
 
     statuses.append((discord.ActivityType.watching, f"👥 {total_members:,} members"))
     statuses.append((discord.ActivityType.watching, f"🟢 {total_online:,} online"))
