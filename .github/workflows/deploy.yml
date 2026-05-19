@@ -9,11 +9,17 @@ jobs:
   deploy:
     name: Deploy Bot
     runs-on: ubuntu-latest
+    concurrency:
+      group: production
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Set up Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - run: flyctl deploy --remote-only
+      - name: Deploy to Fly.io
+        id: fly-deploy
+        run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
