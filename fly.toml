@@ -8,6 +8,19 @@ primary_region = 'iad'
 
 [build]
 
+[deploy]
+  strategy = 'rolling'
+  wait_timeout = '5m'
+
+[[checks]]
+  grace_period = "30s"
+  interval = "15s"
+  method = "GET"
+  path = "/health"
+  port = 8080
+  timeout = "5s"
+  type = "http"
+
 [http_service]
   internal_port = 8080
   force_https = true
