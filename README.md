@@ -59,7 +59,7 @@ discord-youtube-status-bot/
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml      # Auto-deploy to Fly.io on push
-├── bot.py                  # Main bot logic (486 lines)
+├── bot.py                  # Main bot logic
 ├── Dockerfile              # Container image for Fly.io
 ├── fly.toml                # Fly.io config (rolling deploy, always-on)
 ├── requirements.txt        # Python dependencies
@@ -75,7 +75,7 @@ discord-youtube-status-bot/
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/discord-youtube-status-bot.git
+git clone https://github.com/MacroMaster101/discord-youtube-status-bot.git
 cd discord-youtube-status-bot
 pip install -r requirements.txt
 ```
@@ -143,9 +143,9 @@ flyctl deploy
 The included GitHub Actions workflow (`.github/workflows/deploy.yml`) auto-deploys on every push to `main`.
 
 **One-time setup:**
-1. Generate a Fly.io token: `flyctl tokens create deploy -x 999999h`
+1. Generate a Fly.io deploy token: `flyctl tokens create deploy -x 999999h`
 2. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions**
-3. Add secret: `FLY_API_TOKEN` = your token
+3. Add secret: Name = `FLY_API_TOKEN`, Value = your token
 
 ### Deployment Config Highlights
 
