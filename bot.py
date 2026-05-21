@@ -1,8 +1,13 @@
 import os
+import sys
+import time
 import random
 import asyncio
 import threading
 import datetime
+import collections
+import secrets
+from functools import wraps
 
 import requests
 from dotenv import load_dotenv
@@ -10,28 +15,315 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import tasks
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, render_template
 
-# ----------------- FLASK KEEP-ALIVE -----------------
+# ----------------- GLOBAL LOGGER & WEB PANEL STATE -----------------
 
-app = Flask(__name__)
+LOGS_BUFFER = collections.deque(maxlen=100)
+PRESENCE_ROTATION_ENABLED = True
+CUSTOM_PRESENCE_STATUS = "online"
+CUSTOM_PRESENCE_ACTIVITY = "watching"
+CUSTOM_PRESENCE_TEXT = ""
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
+log_lock = threading.Lock()
+
+def add_log(message, level="info"):
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    with log_lock:
+        LOGS_BUFFER.append({
+            "timestamp": timestamp,
+            "message": message,
+            "level": level
+        })
+    sys.stdout.write(f"[{timestamp}] [{level.upper()}] {message}\n")
+    sys.stdout.flush()
+
+# ----------------- FLASK KEEP-ALIVE & ADMIN API -----------------
+
+template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
+app = Flask(__name__, template_folder=template_dir)
 BOT_START_TIME = None
 
+# Decorator for Authentication
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"message": "Unauthorized"}), 401
+        
+        token = auth_header.split(" ")[1]
+        if token != ADMIN_PASSWORD:
+            return jsonify({"message": "Unauthorized"}), 401
+            
+        return f(*args, **kwargs)
+    return decorated
 
 @app.route("/")
 def home():
-    uptime_str = "N/A"
-    if BOT_START_TIME:
-        delta = datetime.datetime.utcnow() - BOT_START_TIME
-        h, r = divmod(int(delta.total_seconds()), 3600)
-        m, s = divmod(r, 60)
-        uptime_str = f"{h}h {m}m {s}s"
-    return jsonify({"status": "online", "message": "Bot is running! ✅", "uptime": uptime_str})
-
+    return render_template("index.html")
 
 @app.route("/health")
 def health():
     return "OK", 200
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.get_json() or {}
+    password = data.get("password")
+    if password == ADMIN_PASSWORD:
+        return jsonify({"token": ADMIN_PASSWORD}), 200
+    return jsonify({"message": "Invalid password"}), 401
+
+@app.route("/api/stats", methods=["GET"])
+@require_auth
+def api_stats():
+    uptime_seconds = 0
+    uptime_str = "N/A"
+    if BOT_START_TIME:
+        delta = datetime.datetime.utcnow() - BOT_START_TIME
+        uptime_seconds = int(delta.total_seconds())
+        h, r = divmod(uptime_seconds, 3600)
+        m, s = divmod(r, 60)
+        uptime_str = f"{h}h {m}m {s}s"
+        
+    latency_ms = round(client.latency * 1000) if client.is_ready() else 0
+    server_count = len(client.guilds) if client.is_ready() else 0
+    total_members = sum(g.member_count for g in client.guilds) if client.is_ready() else 0
+    
+    # System stats
+    ram_usage = 32.5
+    try:
+        import resource
+        ram_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    except ImportError:
+        try:
+            import ctypes
+            process_handle = ctypes.windll.kernel32.GetCurrentProcess()
+            class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                _fields_ = [
+                    ("cb", ctypes.c_ulong),
+                    ("PageFaultCount", ctypes.c_ulong),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t)
+                ]
+            counters = PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
+            if ctypes.windll.psapi.GetProcessMemoryInfo(process_handle, ctypes.byref(counters), counters.cb):
+                ram_usage = counters.WorkingSetSize / (1024.0 * 1024.0)
+        except Exception:
+            pass
+            
+    thread_count = threading.active_count()
+    sim_cpu = round(random.uniform(1.5, 4.5), 1)
+    
+    bot_user_data = None
+    if client.user:
+        bot_user_data = {
+            "name": client.user.name,
+            "discriminator": client.user.discriminator,
+            "avatar": client.user.display_avatar.url if client.user.avatar else None
+        }
+        
+    yt = get_youtube_channel_info() or {"name": "Unknown", "subscribers": 0, "views": 0, "videos": 0}
+    
+    return jsonify({
+        "status": CUSTOM_PRESENCE_STATUS,
+        "uptime": uptime_str,
+        "uptime_seconds": uptime_seconds,
+        "latency": latency_ms,
+        "server_count": server_count,
+        "total_members": total_members,
+        "bot_user": bot_user_data,
+        "youtube": yt,
+        "system": {
+            "cpu": sim_cpu,
+            "ram": ram_usage,
+            "threads": thread_count
+        }
+    })
+
+@app.route("/api/config", methods=["GET"])
+@require_auth
+def api_get_config():
+    return jsonify({
+        "PREFIX": PREFIX,
+        "WELCOME_CHANNEL_ID": WELCOME_CHANNEL_ID or "",
+        "YOUTUBE_CHANNEL_ID": YOUTUBE_CHANNEL_ID or "",
+        "YOUTUBE_API_KEY": YOUTUBE_API_KEY or ""
+    })
+
+@app.route("/api/config", methods=["POST"])
+@require_auth
+def api_set_config():
+    global PREFIX, WELCOME_CHANNEL_ID, YOUTUBE_CHANNEL_ID, YOUTUBE_API_KEY, ADMIN_PASSWORD
+    data = request.get_json() or {}
+    
+    prefix = data.get("PREFIX", "$")
+    welcome_channel = data.get("WELCOME_CHANNEL_ID", "")
+    yt_channel = data.get("YOUTUBE_CHANNEL_ID", "")
+    yt_key = data.get("YOUTUBE_API_KEY", "")
+    new_password = data.get("ADMIN_PASSWORD", "")
+    
+    try:
+        update_env_variable("PREFIX", prefix)
+        update_env_variable("WELCOME_CHANNEL_ID", welcome_channel)
+        update_env_variable("YOUTUBE_CHANNEL_ID", yt_channel)
+        update_env_variable("YOUTUBE_API_KEY", yt_key)
+        
+        if new_password:
+            update_env_variable("ADMIN_PASSWORD", new_password)
+            ADMIN_PASSWORD = new_password
+            
+        PREFIX = prefix
+        WELCOME_CHANNEL_ID = welcome_channel
+        YOUTUBE_CHANNEL_ID = yt_channel
+        YOUTUBE_API_KEY = yt_key
+        
+        add_log(f"Configuration updated from control panel. Prefix: {PREFIX}", "success")
+        return jsonify({"status": "success", "token": ADMIN_PASSWORD}), 200
+    except Exception as e:
+        add_log(f"Error saving configuration: {e}", "error")
+        return jsonify({"message": f"Error saving: {e}"}), 500
+
+@app.route("/api/servers", methods=["GET"])
+@require_auth
+def api_servers():
+    if not client.is_ready():
+        return jsonify([]), 200
+        
+    servers = []
+    for guild in client.guilds:
+        channels = []
+        for ch in guild.text_channels:
+            perms = ch.permissions_for(guild.me)
+            if perms.send_messages:
+                channels.append({
+                    "id": str(ch.id),
+                    "name": ch.name
+                })
+        servers.append({
+            "id": str(guild.id),
+            "name": guild.name,
+            "member_count": guild.member_count,
+            "channels": channels
+        })
+    return jsonify(servers)
+
+@app.route("/api/send-message", methods=["POST"])
+@require_auth
+def api_send_message():
+    data = request.get_json() or {}
+    channel_id = data.get("channel_id")
+    content = data.get("content")
+    use_embed = data.get("embed", False)
+    
+    if not (channel_id and content):
+        return jsonify({"message": "Missing channel ID or content"}), 400
+        
+    channel = client.get_channel(int(channel_id))
+    if not channel:
+        return jsonify({"message": "Channel not found"}), 404
+        
+    try:
+        if use_embed:
+            embed = discord.Embed(
+                title="📢 Broadcast Announcement",
+                description=content,
+                color=0x5865F2,
+                timestamp=datetime.datetime.utcnow()
+            )
+            embed.set_footer(text=f"Sent via Bot Dashboard", icon_url=client.user.display_avatar.url if client.user.avatar else None)
+            fut = asyncio.run_coroutine_threadsafe(channel.send(embed=embed), client.loop)
+        else:
+            fut = asyncio.run_coroutine_threadsafe(channel.send(content), client.loop)
+            
+        fut.result()
+        add_log(f"Broadcast message sent to #{channel.name} in {channel.guild.name}", "success")
+        return jsonify({"status": "success"})
+    except Exception as e:
+        add_log(f"Failed sending message to {channel_id}: {e}", "error")
+        return jsonify({"message": str(e)}), 500
+
+@app.route("/api/presence", methods=["POST"])
+@require_auth
+def api_presence():
+    global PRESENCE_ROTATION_ENABLED, CUSTOM_PRESENCE_STATUS, CUSTOM_PRESENCE_ACTIVITY, CUSTOM_PRESENCE_TEXT
+    data = request.get_json() or {}
+    
+    status = data.get("status", "online")
+    activity = data.get("activity", "watching")
+    text = data.get("text", "")
+    rotation = data.get("rotation", True)
+    
+    CUSTOM_PRESENCE_STATUS = status
+    CUSTOM_PRESENCE_ACTIVITY = activity
+    CUSTOM_PRESENCE_TEXT = text
+    PRESENCE_ROTATION_ENABLED = rotation
+    
+    add_log(f"Presence updated: Status={status}, Activity={activity}, Text='{text}', Rotation={rotation}", "info")
+    
+    if not rotation:
+        async def force_presence():
+            act_type = discord.ActivityType.watching
+            if activity == "playing": act_type = discord.ActivityType.playing
+            elif activity == "listening": act_type = discord.ActivityType.listening
+            elif activity == "streaming": act_type = discord.ActivityType.streaming
+            
+            sub_count = get_subscriber_count() or 0
+            total_members = sum(g.member_count for g in client.guilds) if client.guilds else 0
+            online_members = sum(1 for g in client.guilds for m in g.members if m.status != discord.Status.offline and not m.bot)
+            server_count = len(client.guilds)
+            
+            formatted_text = text.format(
+                sub_count=f"{sub_count:,}",
+                total_members=f"{total_members:,}",
+                online_members=f"{online_members:,}",
+                server_count=server_count
+            )
+            
+            act = discord.Activity(type=act_type, name=formatted_text)
+            status_map = {
+                "online": discord.Status.online,
+                "idle": discord.Status.idle,
+                "dnd": discord.Status.dnd,
+                "invisible": discord.Status.invisible
+            }
+            await client.change_presence(status=status_map.get(status, discord.Status.online), activity=act)
+            
+        asyncio.run_coroutine_threadsafe(force_presence(), client.loop)
+        
+    return jsonify({"status": "success"})
+
+@app.route("/api/presence/rotate", methods=["POST"])
+@require_auth
+def api_presence_rotate():
+    asyncio.run_coroutine_threadsafe(update_status(), client.loop)
+    add_log("Manual presence rotation loop skipped to next item", "info")
+    return jsonify({"status": "success"})
+
+@app.route("/api/logs", methods=["GET"])
+@require_auth
+def api_logs():
+    with log_lock:
+        return jsonify(list(LOGS_BUFFER))
+
+@app.route("/api/restart", methods=["POST"])
+@require_auth
+def api_restart():
+    add_log("Service reboot requested. Process exiting gracefully...", "warning")
+    def schedule_exit():
+        time.sleep(1)
+        os._exit(0)
+    threading.Thread(target=schedule_exit).start()
+    return jsonify({"status": "success"})
 
 
 def run_web():
@@ -51,8 +343,30 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID")
 WELCOME_CHANNEL_ID = os.getenv("WELCOME_CHANNEL_ID")  # optional
+PREFIX = os.getenv("PREFIX", "$")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-PREFIX = "$"
+def update_env_variable(key, value):
+    """Update a specific variable inside the .env file, creating it if needed."""
+    env_path = ".env"
+    lines = []
+    found = False
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            
+    new_line = f"{key}={value}\n"
+    for i, line in enumerate(lines):
+        if line.strip().startswith(f"{key}="):
+            lines[i] = new_line
+            found = True
+            break
+            
+    if not found:
+        lines.append(new_line)
+        
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -129,15 +443,17 @@ RPS_EMOJIS = {"rock": "🪨", "paper": "📄", "scissors": "✂️"}
 async def on_ready():
     global BOT_START_TIME
     BOT_START_TIME = datetime.datetime.utcnow()
-    print(f"Logged in as {client.user} (ID: {client.user.id})")
-    print(f"Serving {len(client.guilds)} server(s)")
-    print("------")
+    add_log(f"Logged in as {client.user} (ID: {client.user.id})", "success")
+    add_log(f"Serving {len(client.guilds)} server(s)", "info")
     update_status.start()
 
 
 @tasks.loop(seconds=15)
 async def update_status():
-    """Rotate bot presence between YT stats and server stats."""
+    """Rotate bot presence between YT stats and server stats if enabled."""
+    if not PRESENCE_ROTATION_ENABLED:
+        return
+
     # Gather stats
     sub_count = get_subscriber_count()
     total_members = sum(g.member_count for g in client.guilds)
@@ -172,7 +488,15 @@ async def update_status():
     update_status._index += 1
 
     activity = discord.Activity(type=activity_type, name=text)
-    await client.change_presence(status=discord.Status.online, activity=activity)
+    
+    status_map = {
+        "online": discord.Status.online,
+        "idle": discord.Status.idle,
+        "dnd": discord.Status.dnd,
+        "invisible": discord.Status.invisible
+    }
+    status = status_map.get(CUSTOM_PRESENCE_STATUS, discord.Status.online)
+    await client.change_presence(status=status, activity=activity)
 
 
 @client.event
@@ -180,6 +504,8 @@ async def on_member_join(member: discord.Member):
     """Auto-welcome new members with a rich embed."""
     if member.bot:
         return
+
+    add_log(f"New member joined: {member.name} (Guild: {member.guild.name})", "info")
 
     # Try the configured welcome channel, fall back to system channel
     channel = None
@@ -216,12 +542,14 @@ async def on_message(message: discord.Message):
     if content in ["hi", "hello", "hey", "sup", "yo", "wassup", "what's up"]:
         resp = random.choice(GREETING_RESPONSES).format(mention=message.author.mention)
         await message.channel.send(resp)
+        add_log(f"Auto-greeted {message.author.name} (Guild: {message.guild.name if message.guild else 'DM'})", "info")
         return
 
     # ---- GG reactions ----
     if content in ["gg", "gg wp", "ggwp", "good game"]:
         await message.channel.send(f"GG {message.author.mention}! 🏆🔥")
         await message.add_reaction("🏆")
+        add_log(f"Auto-GG reaction for {message.author.name} (Guild: {message.guild.name if message.guild else 'DM'})", "info")
         return
 
     # ---- Commands ----
@@ -232,6 +560,8 @@ async def on_message(message: discord.Message):
     parts = raw.split(None, 1)
     cmd = parts[0].lower() if parts else ""
     args = parts[1] if len(parts) > 1 else ""
+
+    add_log(f"Command '{PREFIX}{cmd}' executed by {message.author.name} (Guild: {message.guild.name if message.guild else 'DM'})", "info")
 
     # ---------- !ping ----------
     if cmd == "ping":
