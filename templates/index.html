@@ -1226,6 +1226,11 @@
                                 <i class="fa-solid fa-eye"></i> Presence Control
                             </a>
                         </li>
+                        <li class="nav-item" onclick="switchTab('moderation', this)">
+                            <a href="#" class="nav-link">
+                                <i class="fa-solid fa-shield-halved"></i> Moderation
+                            </a>
+                        </li>
                         <li class="nav-item" onclick="switchTab('broadcast', this)">
                             <a href="#" class="nav-link">
                                 <i class="fa-solid fa-paper-plane"></i> Broadcast
@@ -1396,47 +1401,56 @@
                     </div>
                 </div>
 
-                <!-- YouTube Integration Panel -->
+                <!-- Server Health Panel -->
                 <div class="panel-card" style="margin-top: 25px;">
                     <div class="panel-card-header">
-                        <h3 style="font-family: 'Outfit', sans-serif;"><i class="fa-brands fa-youtube" style="color: var(--color-ruby)"></i> YouTube Integration Stats</h3>
-                        <span id="ytSyncBadge" class="vital-badge" style="font-size: 0.75rem;"><i class="fa-solid fa-circle-check" style="color: var(--color-emerald)"></i> Synced</span>
+                        <h3 style="font-family: 'Outfit', sans-serif;"><i class="fa-solid fa-shield-halved" style="color: var(--color-blurple)"></i> Server & Moderation Health</h3>
+                        <span class="vital-badge" style="font-size: 0.75rem;"><i class="fa-solid fa-circle-check" style="color: var(--color-emerald)"></i> Live</span>
                     </div>
                     <div class="stats-grid" style="margin-bottom: 0;">
-                        <div class="stat-card youtube">
+                        <div class="stat-card">
                             <div class="stat-details">
-                                <h4>Channel Name</h4>
-                                <div id="ytChannelName" class="value" style="font-size: 1.2rem; margin-top: 5px;">Not Configured</div>
+                                <h4>Online Members</h4>
+                                <div id="statOnlineVal" class="value">0</div>
                             </div>
                             <div class="stat-icon">
-                                <i class="fa-solid fa-id-card"></i>
+                                <i class="fa-solid fa-circle-user" style="color: var(--color-emerald)"></i>
                             </div>
                         </div>
-                        <div class="stat-card youtube">
+                        <div class="stat-card">
                             <div class="stat-details">
-                                <h4>Subscribers</h4>
-                                <div id="ytSubscribers" class="value">0</div>
+                                <h4>Text Channels</h4>
+                                <div id="statTextChannelsVal" class="value">0</div>
                             </div>
                             <div class="stat-icon">
-                                <i class="fa-solid fa-user-plus"></i>
+                                <i class="fa-solid fa-hashtag"></i>
                             </div>
                         </div>
-                        <div class="stat-card youtube">
+                        <div class="stat-card">
                             <div class="stat-details">
-                                <h4>Total Views</h4>
-                                <div id="ytViews" class="value">0</div>
+                                <h4>Voice Channels</h4>
+                                <div id="statVoiceChannelsVal" class="value">0</div>
                             </div>
                             <div class="stat-icon">
-                                <i class="fa-solid fa-eye"></i>
+                                <i class="fa-solid fa-microphone"></i>
                             </div>
                         </div>
-                        <div class="stat-card youtube">
+                        <div class="stat-card">
                             <div class="stat-details">
-                                <h4>Uploaded Videos</h4>
-                                <div id="ytVideos" class="value">0</div>
+                                <h4>Active Warnings</h4>
+                                <div id="statWarningsVal" class="value">0</div>
                             </div>
                             <div class="stat-icon">
-                                <i class="fa-solid fa-video"></i>
+                                <i class="fa-solid fa-triangle-exclamation" style="color: var(--color-gold)"></i>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-details">
+                                <h4>Recent Mod Actions</h4>
+                                <div id="statModActionsVal" class="value">0</div>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="fa-solid fa-gavel"></i>
                             </div>
                         </div>
                     </div>
@@ -1464,16 +1478,16 @@
 
                     <div class="panel-card" style="margin-bottom: 25px;">
                         <div class="panel-card-header">
-                            <h3><i class="fa-brands fa-youtube" style="color: var(--color-ruby)"></i> YouTube API Integration</h3>
+                            <h3><i class="fa-solid fa-shield-halved" style="color: var(--color-blurple)"></i> Moderation Settings</h3>
                         </div>
                         <div class="form-grid">
                             <div class="form-group">
-                                <label for="configYtChannelId">YouTube Channel ID</label>
-                                <input type="text" id="configYtChannelId" class="form-control" placeholder="e.g. UCxxxxxxxxxxxxxxxxxx">
+                                <label for="configModLogChannel">Mod Log Channel ID <span>(Optional)</span></label>
+                                <input type="text" id="configModLogChannel" class="form-control" placeholder="e.g. 123456789012345678">
                             </div>
                             <div class="form-group">
-                                <label for="configYtApiKey">YouTube API Key</label>
-                                <input type="password" id="configYtApiKey" class="form-control" placeholder="AIzaSy...">
+                                <label for="configMutedRole">Muted Role Name <span>(fallback)</span></label>
+                                <input type="text" id="configMutedRole" class="form-control" placeholder="e.g. Muted">
                             </div>
                         </div>
                     </div>
@@ -1539,8 +1553,8 @@
                                 
                                 <div class="form-group">
                                     <label for="presenceText">Custom Status Activity Text</label>
-                                    <input type="text" id="presenceText" class="form-control" placeholder="e.g. {sub_count} subscribers on YouTube" required>
-                                    <span class="help-text">Dynamic variables: <code>{sub_count}</code>, <code>{total_members}</code>, <code>{online_members}</code>, <code>{server_count}</code></span>
+                                    <input type="text" id="presenceText" class="form-control" placeholder="e.g. {total_members} members across {server_count} servers" required>
+                                    <span class="help-text">Dynamic variables: <code>{total_members}</code>, <code>{online_members}</code>, <code>{server_count}</code>, <code>{prefix}</code></span>
                                 </div>
                             </div>
                             
@@ -1570,6 +1584,74 @@
                             <button class="btn btn-danger" onclick="triggerRestart()"><i class="fa-solid fa-power-off"></i> Restart Bot Service</button>
                             <button class="btn btn-secondary" onclick="triggerStatusRotation()"><i class="fa-solid fa-arrows-spin"></i> Force Next Presence Cycle</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ------------------ TAB: MODERATION ------------------ -->
+            <div id="tab-moderation" class="tab-pane">
+                <div class="panel-card" style="margin-bottom: 25px;">
+                    <div class="panel-card-header">
+                        <h3><i class="fa-solid fa-gavel"></i> Moderation Action Console</h3>
+                    </div>
+                    <form id="modActionForm" onsubmit="handleModAction(event)">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="modServer">Server</label>
+                                <select id="modServer" class="form-control" onchange="loadGuildWarnings()" required>
+                                    <option value="" disabled selected>Select a server...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="modAction">Action</label>
+                                <select id="modAction" class="form-control" required>
+                                    <option value="warn">Warn</option>
+                                    <option value="timeout">Timeout (mute)</option>
+                                    <option value="untimeout">Remove Timeout</option>
+                                    <option value="kick">Kick</option>
+                                    <option value="ban">Ban</option>
+                                    <option value="unban">Unban</option>
+                                    <option value="clear_warnings">Clear Warnings</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="modUserId">User ID</label>
+                                <input type="text" id="modUserId" class="form-control" placeholder="e.g. 123456789012345678" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="modDuration">Duration (minutes, timeout only)</label>
+                                <input type="number" id="modDuration" class="form-control" placeholder="10" min="1" max="40320">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="modReason">Reason</label>
+                            <input type="text" id="modReason" class="form-control" placeholder="Reason for action...">
+                        </div>
+                        <div class="form-submit-row" style="margin-top: 15px;">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-gavel"></i> Execute Action</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="panel-card" style="margin-bottom: 25px;">
+                    <div class="panel-card-header">
+                        <h3><i class="fa-solid fa-triangle-exclamation" style="color: var(--color-gold)"></i> Active Warnings</h3>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadGuildWarnings()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                    </div>
+                    <div id="warningsList" style="display: flex; flex-direction: column; gap: 10px;">
+                        <p style="color: var(--text-secondary); padding: 10px;">Select a server to view warnings.</p>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-card-header">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Moderation Actions</h3>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadModActions()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                    </div>
+                    <div id="modActionsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+                        <p style="color: var(--text-secondary); padding: 10px;">No actions yet.</p>
                     </div>
                 </div>
             </div>
@@ -1662,6 +1744,7 @@
             'dashboard': { title: 'Dashboard Overview', desc: 'System analytics and vital stats in real-time.' },
             'config': { title: 'Bot Configuration', desc: 'Manage prefixes, channels, credentials, and API connections.' },
             'presence': { title: 'Presence Customizer', desc: 'Instantly modify status mode and rich activity indicators.' },
+            'moderation': { title: 'Moderation Center', desc: 'Issue mod actions, manage warnings, and audit recent activity.' },
             'broadcast': { title: 'Message Center', desc: 'Deploy custom communications directly to text channels.' },
             'logs': { title: 'System Live Console', desc: 'Monitor bot logs, events, and interactions in real-time.' }
         };
@@ -1749,6 +1832,9 @@
                 fetchConfig();
             } else if (tabId === 'broadcast') {
                 fetchServers();
+            } else if (tabId === 'moderation') {
+                fetchServersForModeration();
+                loadModActions();
             } else if (tabId === 'logs') {
                 setTimeout(() => {
                     const feed = document.getElementById('consoleFeed');
@@ -1831,19 +1917,13 @@
                 // Bind Status Badge
                 updatePresenceBadge(data.status);
 
-                // Bind YouTube Panel
-                if (data.youtube && data.youtube.name !== 'Unknown') {
-                    document.getElementById('ytChannelName').innerText = data.youtube.name;
-                    document.getElementById('ytSubscribers').innerText = data.youtube.subscribers.toLocaleString();
-                    document.getElementById('ytViews').innerText = data.youtube.views.toLocaleString();
-                    document.getElementById('ytVideos').innerText = data.youtube.videos.toLocaleString();
-                    document.getElementById('ytSyncBadge').innerHTML = '<i class="fa-solid fa-circle-check" style="color: var(--color-emerald)"></i> Active';
-                } else {
-                    document.getElementById('ytChannelName').innerText = 'Disabled/Not Configured';
-                    document.getElementById('ytSubscribers').innerText = 'N/A';
-                    document.getElementById('ytViews').innerText = 'N/A';
-                    document.getElementById('ytVideos').innerText = 'N/A';
-                    document.getElementById('ytSyncBadge').innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color: var(--color-gold)"></i> Not Synced';
+                // Bind Server Health Panel
+                document.getElementById('statOnlineVal').innerText = (data.online_members || 0).toLocaleString();
+                document.getElementById('statTextChannelsVal').innerText = data.text_channels || 0;
+                document.getElementById('statVoiceChannelsVal').innerText = data.voice_channels || 0;
+                if (data.moderation) {
+                    document.getElementById('statWarningsVal').innerText = data.moderation.total_warnings || 0;
+                    document.getElementById('statModActionsVal').innerText = data.moderation.recent_actions || 0;
                 }
 
                 // Append and redraw latency
@@ -1911,8 +1991,8 @@
 
                 document.getElementById('configPrefix').value = config.PREFIX || '$';
                 document.getElementById('configWelcomeChannel').value = config.WELCOME_CHANNEL_ID || '';
-                document.getElementById('configYtChannelId').value = config.YOUTUBE_CHANNEL_ID || '';
-                document.getElementById('configYtApiKey').value = config.YOUTUBE_API_KEY || '';
+                document.getElementById('configModLogChannel').value = config.MOD_LOG_CHANNEL_ID || '';
+                document.getElementById('configMutedRole').value = config.MUTED_ROLE_NAME || 'Muted';
                 document.getElementById('configAdminPassword').value = '';
             } catch (err) {
                 showToast('Config Error', 'Failed reading environment configurations.', 'error');
@@ -1924,8 +2004,8 @@
 
             const prefix = document.getElementById('configPrefix').value;
             const welcomeChannel = document.getElementById('configWelcomeChannel').value;
-            const ytChannelId = document.getElementById('configYtChannelId').value;
-            const ytApiKey = document.getElementById('configYtApiKey').value;
+            const modLogChannel = document.getElementById('configModLogChannel').value;
+            const mutedRole = document.getElementById('configMutedRole').value;
             const newPassword = document.getElementById('configAdminPassword').value;
 
             try {
@@ -1938,8 +2018,8 @@
                     body: JSON.stringify({
                         PREFIX: prefix,
                         WELCOME_CHANNEL_ID: welcomeChannel,
-                        YOUTUBE_CHANNEL_ID: ytChannelId,
-                        YOUTUBE_API_KEY: ytApiKey,
+                        MOD_LOG_CHANNEL_ID: modLogChannel,
+                        MUTED_ROLE_NAME: mutedRole,
                         ADMIN_PASSWORD: newPassword
                     })
                 });
@@ -2035,6 +2115,153 @@
         }
 
         // ------------------ BROADCAST MESSAGE SERVICES ------------------
+        // ------------------ MODERATION SERVICE ------------------
+        async function fetchServersForModeration() {
+            try {
+                const response = await fetch('/api/servers', {
+                    headers: { 'Authorization': `Bearer ${currentAuthToken}` }
+                });
+                if (!response.ok) throw new Error();
+                const servers = await response.json();
+                const select = document.getElementById('modServer');
+                select.innerHTML = '<option value="" disabled selected>Select a server...</option>';
+                servers.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.innerText = `${s.name} (${s.member_count} users)`;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                showToast('Moderation Error', 'Failed loading server list.', 'error');
+            }
+        }
+
+        async function loadGuildWarnings() {
+            const guildId = document.getElementById('modServer').value;
+            const list = document.getElementById('warningsList');
+            if (!guildId) {
+                list.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">Select a server to view warnings.</p>';
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/mod/warnings?guild_id=${guildId}`, {
+                    headers: { 'Authorization': `Bearer ${currentAuthToken}` }
+                });
+                if (!resp.ok) throw new Error();
+                const data = await resp.json();
+                if (!data.warnings || data.warnings.length === 0) {
+                    list.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">No warnings in this server. 🎉</p>';
+                    return;
+                }
+                list.innerHTML = '';
+                data.warnings.forEach(w => {
+                    const card = document.createElement('div');
+                    card.style.cssText = 'background: var(--bg-tertiary); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center;';
+                    const recent = (w.warnings[w.warnings.length - 1] || {}).reason || '';
+                    card.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            ${w.avatar ? `<img src="${w.avatar}" style="width:36px;height:36px;border-radius:50%;">` : '<i class="fa-solid fa-user-circle" style="font-size:36px;color:var(--text-muted)"></i>'}
+                            <div>
+                                <div style="font-weight:600;">${escapeHtml(w.user_name)}</div>
+                                <div style="font-size:0.8rem; color: var(--text-secondary);">ID: <code>${w.user_id}</code> · Latest: ${escapeHtml(recent.slice(0, 80))}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="background: var(--color-gold); color: #000; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 0.85rem;">⚠️ ${w.count}</span>
+                            <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;" onclick="quickClearWarns('${w.user_id}')"><i class="fa-solid fa-trash"></i> Clear</button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            } catch (err) {
+                list.innerHTML = '<p style="color: var(--color-ruby); padding: 10px;">Error loading warnings.</p>';
+            }
+        }
+
+        async function quickClearWarns(userId) {
+            const guildId = document.getElementById('modServer').value;
+            if (!guildId) return;
+            if (!confirm('Clear all warnings for this user?')) return;
+            await executeModAction({ action: 'clear_warnings', guild_id: guildId, user_id: userId, reason: 'Cleared via dashboard' });
+        }
+
+        async function handleModAction(e) {
+            e.preventDefault();
+            const payload = {
+                action: document.getElementById('modAction').value,
+                guild_id: document.getElementById('modServer').value,
+                user_id: document.getElementById('modUserId').value.trim(),
+                reason: document.getElementById('modReason').value || 'Issued from dashboard',
+                duration: document.getElementById('modDuration').value || null,
+            };
+            await executeModAction(payload);
+        }
+
+        async function executeModAction(payload) {
+            try {
+                const resp = await fetch('/api/mod/action', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentAuthToken}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    showToast('Action Executed', data.message || 'Success', 'success');
+                    loadGuildWarnings();
+                    loadModActions();
+                } else {
+                    showToast('Action Failed', data.message || 'Error', 'error');
+                }
+            } catch (err) {
+                showToast('Action Failed', 'Network or server error.', 'error');
+            }
+        }
+
+        async function loadModActions() {
+            try {
+                const resp = await fetch('/api/mod/actions', {
+                    headers: { 'Authorization': `Bearer ${currentAuthToken}` }
+                });
+                if (!resp.ok) throw new Error();
+                const actions = await resp.json();
+                const list = document.getElementById('modActionsList');
+                if (!actions.length) {
+                    list.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">No actions yet.</p>';
+                    return;
+                }
+                list.innerHTML = '';
+                actions.slice().reverse().forEach(a => {
+                    const item = document.createElement('div');
+                    item.style.cssText = 'background: var(--bg-tertiary); border-left: 3px solid var(--color-blurple); padding: 8px 12px; border-radius: 4px; font-size: 0.85rem;';
+                    item.innerHTML = `
+                        <div style="display: flex; justify-content: space-between;">
+                            <strong style="text-transform: uppercase; color: var(--color-blurple);">${escapeHtml(a.action)}</strong>
+                            <span style="color: var(--text-muted);">${escapeHtml(a.time)}</span>
+                        </div>
+                        <div style="margin-top: 4px;">
+                            <span style="color: var(--text-secondary);">Target:</span> ${escapeHtml(a.target)} ·
+                            <span style="color: var(--text-secondary);">By:</span> ${escapeHtml(a.moderator)} ·
+                            <span style="color: var(--text-secondary);">Guild:</span> ${escapeHtml(a.guild)}
+                        </div>
+                        <div style="margin-top: 2px; color: var(--text-secondary);">${escapeHtml(a.reason)}</div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (err) {
+                /* silent */
+            }
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
         async function fetchServers() {
             try {
                 const response = await fetch('/api/servers', {
