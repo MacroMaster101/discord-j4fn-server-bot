@@ -22,3 +22,7 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Bot data (warnings, runtime state)
+data/
+*.json.tmp
