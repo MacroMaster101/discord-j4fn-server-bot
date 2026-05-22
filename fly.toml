@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for discord-youtube-status-bot on 2026-05-19T12:57:13Z
+# fly.toml app configuration file generated for discord-youtube-status-bot on 2026-05-22T08:10:25Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -10,17 +10,7 @@ primary_region = 'iad'
 
 [deploy]
   strategy = 'rolling'
-  wait_timeout = '5m'
-
-[[checks]]
-  name = "health"
-  grace_period = "30s"
-  interval = "15s"
-  method = "GET"
-  path = "/health"
-  port = 8080
-  timeout = "5s"
-  type = "http"
+  wait_timeout = '5m0s'
 
 [http_service]
   internal_port = 8080
@@ -29,6 +19,16 @@ primary_region = 'iad'
   auto_start_machines = true
   min_machines_running = 1
   processes = ['app']
+
+[checks]
+  [checks.health]
+    port = 8080
+    type = 'http'
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
   memory = '256mb'
