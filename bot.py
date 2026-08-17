@@ -173,7 +173,14 @@ def health():
     return "OK", 200
 
 
+# NOTE: every authenticated endpoint is also mounted under /admin/api/... because the
+# Cloudflare Access application only covers bot.j4fn.site/admin and /admin/*. Calls to a
+# bare /api/... path are routed straight to the origin without the Cf-Access-* identity
+# headers, so Access logins could never be detected there. The admin dashboard must use
+# the /admin/api/... paths; /api/public/stats stays public for the landing page.
+
 @app.route("/api/login", methods=["POST"])
+@app.route("/admin/api/login", methods=["POST"])
 def api_login():
     data = request.get_json() or {}
     password = data.get("password")
@@ -183,6 +190,7 @@ def api_login():
 
 
 @app.route("/api/auth-check", methods=["GET"])
+@app.route("/admin/api/auth-check", methods=["GET"])
 def api_auth_check():
     cf_email = request.headers.get("Cf-Access-Authenticated-User-Email")
     if cf_email:
@@ -199,6 +207,7 @@ def api_auth_check():
 
 @app.route("/api/public/stats", methods=["GET"])
 @app.route("/api/stats", methods=["GET"])
+@app.route("/admin/api/stats", methods=["GET"])
 def api_stats():
     uptime_seconds = 0
     uptime_str = "N/A"
@@ -299,6 +308,7 @@ def api_stats():
 
 
 @app.route("/api/config", methods=["GET"])
+@app.route("/admin/api/config", methods=["GET"])
 @require_auth
 def api_get_config():
     return jsonify({
@@ -313,6 +323,7 @@ def api_get_config():
 
 
 @app.route("/api/config", methods=["POST"])
+@app.route("/admin/api/config", methods=["POST"])
 @require_auth
 def api_set_config():
     global PREFIX, WELCOME_CHANNEL_ID, MOD_LOG_CHANNEL_ID, MUTED_ROLE_NAME, ADMIN_PASSWORD, STREAMING_URL
@@ -352,6 +363,7 @@ def api_set_config():
 
 
 @app.route("/api/servers", methods=["GET"])
+@app.route("/admin/api/servers", methods=["GET"])
 @require_auth
 def api_servers():
     if not client.is_ready():
@@ -375,6 +387,7 @@ def api_servers():
 
 
 @app.route("/api/send-message", methods=["POST"])
+@app.route("/admin/api/send-message", methods=["POST"])
 @require_auth
 def api_send_message():
     data = request.get_json() or {}
@@ -411,6 +424,7 @@ def api_send_message():
 
 
 @app.route("/api/presence", methods=["POST"])
+@app.route("/admin/api/presence", methods=["POST"])
 @require_auth
 def api_presence():
     global PRESENCE_ROTATION_ENABLED, CUSTOM_PRESENCE_STATUS, CUSTOM_PRESENCE_ACTIVITY, CUSTOM_PRESENCE_TEXT
@@ -472,6 +486,7 @@ def api_presence():
 
 
 @app.route("/api/presence/rotate", methods=["POST"])
+@app.route("/admin/api/presence/rotate", methods=["POST"])
 @require_auth
 def api_presence_rotate():
     asyncio.run_coroutine_threadsafe(update_status(), client.loop)
@@ -479,6 +494,7 @@ def api_presence_rotate():
 
 
 @app.route("/api/logs", methods=["GET"])
+@app.route("/admin/api/logs", methods=["GET"])
 @require_auth
 def api_logs():
     with log_lock:
@@ -486,6 +502,7 @@ def api_logs():
 
 
 @app.route("/api/mod/actions", methods=["GET"])
+@app.route("/admin/api/mod/actions", methods=["GET"])
 @require_auth
 def api_mod_actions():
     with log_lock:
@@ -493,6 +510,7 @@ def api_mod_actions():
 
 
 @app.route("/api/mod/warnings", methods=["GET"])
+@app.route("/admin/api/mod/warnings", methods=["GET"])
 @require_auth
 def api_mod_warnings():
     guild_id = request.args.get("guild_id")
@@ -521,6 +539,7 @@ def api_mod_warnings():
 
 
 @app.route("/api/mod/action", methods=["POST"])
+@app.route("/admin/api/mod/action", methods=["POST"])
 @require_auth
 def api_mod_action():
     data = request.get_json() or {}
@@ -605,6 +624,7 @@ def api_mod_action():
 
 
 @app.route("/api/restart", methods=["POST"])
+@app.route("/admin/api/restart", methods=["POST"])
 @require_auth
 def api_restart():
     add_log("Service reboot requested. Exiting...", "warning")

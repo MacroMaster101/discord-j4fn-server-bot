@@ -1,4 +1,5 @@
 let authToken = localStorage.getItem('bot_auth_token') || '';
+let authType = '';
 
 window.addEventListener('load', async () => {
     await checkAuth();
@@ -10,10 +11,11 @@ window.addEventListener('load', async () => {
 async function checkAuth() {
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const res = await fetch('/api/auth-check', { headers, credentials: 'include' });
+        const res = await fetch('/admin/api/auth-check', { headers, credentials: 'include' });
         const data = await res.json();
 
         if (data.authenticated) {
+            authType = data.type || '';
             document.getElementById('adminLoginOverlay').style.display = 'none';
             document.getElementById('userIdentity').innerText = data.email || 'Cloudflare Admin';
             loadStats();
@@ -34,7 +36,7 @@ async function handleAdminLogin(e) {
     errDiv.style.display = 'none';
 
     try {
-        const res = await fetch('/api/login', {
+        const res = await fetch('/admin/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password })
@@ -58,7 +60,7 @@ async function handleAdminLogin(e) {
 
 async function loadStats() {
     try {
-        const res = await fetch('/api/public/stats');
+        const res = await fetch('/admin/api/stats');
         const data = await res.json();
 
         document.getElementById('mStatus').innerText = (data.status || 'online').toUpperCase();
@@ -74,7 +76,7 @@ async function loadStats() {
 async function loadConfig() {
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const servRes = await fetch('/api/servers', { headers });
+        const servRes = await fetch('/admin/api/servers', { headers });
         if (servRes.ok) {
             const servers = await servRes.json();
             
@@ -108,7 +110,7 @@ async function loadConfig() {
             });
         }
 
-        const confRes = await fetch('/api/config', { headers });
+        const confRes = await fetch('/admin/api/config', { headers });
         if (confRes.ok) {
             const cfg = await confRes.json();
             document.getElementById('cfgPrefix').value = cfg.PREFIX || '$';
@@ -134,7 +136,7 @@ async function saveConfig(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/api/config', {
+        const res = await fetch('/admin/api/config', {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -161,7 +163,7 @@ async function savePresence(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/api/presence', {
+        const res = await fetch('/admin/api/presence', {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -184,7 +186,7 @@ async function runModAction(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/api/mod/action', {
+        const res = await fetch('/admin/api/mod/action', {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -210,7 +212,7 @@ async function loadGuildWarnings() {
 
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const res = await fetch(`/api/mod/warnings?guild_id=${guildId}`, { headers });
+        const res = await fetch(`/admin/api/mod/warnings?guild_id=${guildId}`, { headers });
         if (res.ok) {
             const data = await res.json();
             if (!data.warnings || data.warnings.length === 0) {
@@ -239,5 +241,14 @@ async function loadGuildWarnings() {
 
 function logoutAdmin() {
     localStorage.removeItem('bot_auth_token');
+    authToken = '';
+    // A Cloudflare Access session lives in the CF_Authorization cookie, not in
+    // localStorage. Clearing the local token alone would leave the Access session
+    // active and let the next visit to /admin straight back in, so hand off to
+    // Cloudflare's own logout endpoint to actually end the session.
+    if (authType === 'cloudflare') {
+        window.location.href = '/cdn-cgi/access/logout';
+        return;
+    }
     window.location.href = '/';
 }
