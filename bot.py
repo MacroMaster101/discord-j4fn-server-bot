@@ -163,6 +163,7 @@ def home():
 
 
 @app.route("/admin")
+@app.route("/admin/")
 def admin_page():
     return render_template("admin.html")
 
