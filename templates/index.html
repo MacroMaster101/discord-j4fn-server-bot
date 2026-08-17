@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Bot Control Panel</title>
+    <title>J4FN Bot | Server Moderation & Control Panel</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
     <!-- Google Fonts: Inter & Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,9 +20,9 @@
             --bg-panel: rgba(20, 23, 38, 0.6);
             --bg-input: rgba(10, 11, 18, 0.7);
             
-            --color-blurple: #5865F2;
-            --color-blurple-hover: #4752c4;
-            --color-blurple-glow: rgba(88, 101, 242, 0.4);
+            --color-blurple: #dc2626;
+            --color-blurple-hover: #b91c1c;
+            --color-blurple-glow: rgba(220, 38, 38, 0.4);
             
             --color-emerald: #10b981;
             --color-emerald-glow: rgba(16, 185, 129, 0.3);
@@ -35,7 +37,7 @@
             --text-secondary: #9ca3af;
             --text-muted: #6b7280;
             
-            --border-glow: rgba(88, 101, 242, 0.15);
+            --border-glow: rgba(220, 38, 38, 0.25);
             --border-subtle: rgba(255, 255, 255, 0.05);
             
             --radius-lg: 16px;
@@ -76,7 +78,7 @@
             align-items: center;
             justify-content: center;
             background-image: 
-                radial-gradient(at 10% 20%, rgba(88, 101, 242, 0.1) 0px, transparent 50%),
+                radial-gradient(at 10% 20%, rgba(220, 38, 38, 0.12) 0px, transparent 50%),
                 radial-gradient(at 90% 80%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
         }
 
@@ -87,7 +89,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(6, 7, 12, 0.95);
+            background: rgba(6, 7, 12, 0.92);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -108,17 +110,24 @@
             padding: 40px;
             width: 100%;
             max-width: 440px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(88, 101, 242, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(220, 38, 38, 0.2);
             text-align: center;
             animation: pulse-border 4s infinite alternate;
+            position: relative;
         }
 
         .login-logo {
-            font-size: 3.5rem;
-            color: var(--color-blurple);
             margin-bottom: 15px;
-            text-shadow: 0 0 20px var(--color-blurple-glow);
             animation: float 3s ease-in-out infinite;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .login-logo img {
+            width: 72px;
+            height: 72px;
+            border-radius: 16px;
+            box-shadow: 0 0 25px rgba(220, 38, 38, 0.5);
         }
 
         .login-card h2 {
@@ -1213,13 +1222,16 @@
 <body>
 
     <!-- ------------------ SECURE LOGIN SHIELD ------------------ -->
-    <div id="authOverlay" class="auth-overlay">
+    <div id="authOverlay" class="auth-overlay hidden">
         <div class="login-card">
+            <button style="position: absolute; top: 15px; right: 15px; background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer;" onclick="hideLoginShield()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
             <div class="login-logo">
-                <i class="fa-brands fa-discord"></i>
+                <img src="/static/logo.svg" alt="J4FN Logo">
             </div>
-            <h2>Bot Control Portal</h2>
-            <p>Please authenticate to access the admin panel.</p>
+            <h2>J4FN Admin Portal</h2>
+            <p>Enter administrative key to unlock bot settings.</p>
             
             <form id="loginForm" onsubmit="handleLogin(event)">
                 <div class="input-group">
@@ -1247,9 +1259,12 @@
         <!-- SIDEBAR -->
         <aside class="sidebar">
             <div>
-                <div class="sidebar-brand">
-                    <i class="fa-solid fa-robot"></i>
-                    <h1>BotMaster-YT</h1>
+                <div class="sidebar-brand" style="display: flex; align-items: center; gap: 12px; margin-bottom: 30px; padding: 0 5px;">
+                    <img src="/static/logo.svg" alt="J4FN Logo" style="width: 38px; height: 38px; border-radius: 10px; box-shadow: 0 0 15px rgba(220, 38, 38, 0.4);">
+                    <div>
+                        <h1 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px; color: #fff; line-height: 1;">J4FN Bot</h1>
+                        <span style="font-size: 0.68rem; color: #ef4444; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;">j4fn.site</span>
+                    </div>
                 </div>
                 
                 <nav>
@@ -1259,29 +1274,34 @@
                                 <i class="fa-solid fa-chart-line"></i> Dashboard
                             </a>
                         </li>
-                        <li class="nav-item" onclick="switchTab('config', this)">
+                        <li class="nav-item" onclick="switchTab('commands', this)">
                             <a href="#" class="nav-link">
-                                <i class="fa-solid fa-sliders"></i> Configuration
+                                <i class="fa-solid fa-terminal"></i> Commands
                             </a>
                         </li>
-                        <li class="nav-item" onclick="switchTab('presence', this)">
+                        <li class="nav-item admin-only-tab" onclick="switchTab('config', this)">
                             <a href="#" class="nav-link">
-                                <i class="fa-solid fa-eye"></i> Presence Control
+                                <i class="fa-solid fa-sliders"></i> Configuration <span class="lock-badge"><i class="fa-solid fa-lock"></i></span>
                             </a>
                         </li>
-                        <li class="nav-item" onclick="switchTab('moderation', this)">
+                        <li class="nav-item admin-only-tab" onclick="switchTab('presence', this)">
                             <a href="#" class="nav-link">
-                                <i class="fa-solid fa-shield-halved"></i> Moderation
+                                <i class="fa-solid fa-eye"></i> Presence <span class="lock-badge"><i class="fa-solid fa-lock"></i></span>
                             </a>
                         </li>
-                        <li class="nav-item" onclick="switchTab('broadcast', this)">
+                        <li class="nav-item admin-only-tab" onclick="switchTab('moderation', this)">
                             <a href="#" class="nav-link">
-                                <i class="fa-solid fa-paper-plane"></i> Broadcast
+                                <i class="fa-solid fa-shield-halved"></i> Moderation <span class="lock-badge"><i class="fa-solid fa-lock"></i></span>
                             </a>
                         </li>
-                        <li class="nav-item" onclick="switchTab('logs', this)">
+                        <li class="nav-item admin-only-tab" onclick="switchTab('broadcast', this)">
                             <a href="#" class="nav-link">
-                                <i class="fa-solid fa-terminal"></i> Console Logs
+                                <i class="fa-solid fa-paper-plane"></i> Broadcast <span class="lock-badge"><i class="fa-solid fa-lock"></i></span>
+                            </a>
+                        </li>
+                        <li class="nav-item admin-only-tab" onclick="switchTab('logs', this)">
+                            <a href="#" class="nav-link">
+                                <i class="fa-solid fa-code"></i> Console Logs <span class="lock-badge"><i class="fa-solid fa-lock"></i></span>
                             </a>
                         </li>
                     </ul>
@@ -1295,13 +1315,13 @@
                         <span id="botStatusDot" class="bot-status-indicator"></span>
                     </div>
                     <div class="bot-info">
-                        <span id="botName" class="bot-name">Loading...</span>
-                        <span id="botTag" class="bot-tag">#0000</span>
+                        <span id="botName" class="bot-name">JUST FOR FUN</span>
+                        <span id="botTag" class="bot-tag">#1088</span>
                     </div>
                 </div>
                 
-                <button class="logout-btn" onclick="handleLogout()" title="Disconnect session">
-                    <i class="fa-solid fa-right-from-bracket"></i>
+                <button id="adminHeaderBtn" class="login-trigger-btn" onclick="showLoginShield()" title="Admin Login">
+                    <i class="fa-solid fa-key"></i>
                 </button>
             </div>
         </aside>
@@ -1316,7 +1336,7 @@
                     <p id="viewDesc">System analytics and vital stats in real-time.</p>
                 </div>
                 
-                <div class="header-vitals">
+                <div class="header-vitals" style="display: flex; align-items: center; gap: 12px;">
                     <div id="headerStatus" class="vital-badge online">
                         <i class="fa-solid fa-circle"></i>
                         <span id="headerStatusText">Syncing...</span>
@@ -1325,6 +1345,9 @@
                         <i class="fa-solid fa-wifi"></i>
                         <span id="headerPingText">0ms</span>
                     </div>
+                    <button id="topAdminBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;" onclick="toggleAdminState()">
+                        <i class="fa-solid fa-lock"></i> <span>Admin Login</span>
+                    </button>
                 </div>
             </header>
 
@@ -1500,7 +1523,131 @@
                 </div>
             </div>
 
-            <!-- ------------------ TAB: CONFIGURATION ------------------ -->
+            <!-- ------------------ TAB: COMMANDS (PUBLIC) ------------------ -->
+            <div id="tab-commands" class="tab-pane">
+                <div class="panel-card" style="margin-bottom: 25px;">
+                    <div class="panel-card-header" style="flex-wrap: wrap; gap: 15px;">
+                        <h3><i class="fa-solid fa-terminal" style="color: var(--color-blurple)"></i> Bot Command Directory</h3>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary cmd-filter active" onclick="filterCommands('all', this)" style="padding: 6px 14px; font-size: 0.85rem;">All</button>
+                            <button class="btn btn-secondary cmd-filter" onclick="filterCommands('mod', this)" style="padding: 6px 14px; font-size: 0.85rem;">🛡️ Moderation</button>
+                            <button class="btn btn-secondary cmd-filter" onclick="filterCommands('info', this)" style="padding: 6px 14px; font-size: 0.85rem;">📊 Info</button>
+                            <button class="btn btn-secondary cmd-filter" onclick="filterCommands('fun', this)" style="padding: 6px 14px; font-size: 0.85rem;">🎮 Fun</button>
+                            <button class="btn btn-secondary cmd-filter" onclick="filterCommands('auto', this)" style="padding: 6px 14px; font-size: 0.85rem;">💬 Auto</button>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;" id="commandsGrid">
+                        <!-- Moderation -->
+                        <div class="cmd-card" data-cat="mod" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #ef4444; font-weight: 700; font-size: 1rem;">$kick @user [reason]</code>
+                                <span style="font-size: 0.7rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 2px 8px; border-radius: 10px;">Moderation</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Kick a member from the server.</p>
+                        </div>
+                        
+                        <div class="cmd-card" data-cat="mod" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #ef4444; font-weight: 700; font-size: 1rem;">$ban @user [reason]</code>
+                                <span style="font-size: 0.7rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 2px 8px; border-radius: 10px;">Moderation</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Ban a user permanently by mention or user ID.</p>
+                        </div>
+                        
+                        <div class="cmd-card" data-cat="mod" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #ef4444; font-weight: 700; font-size: 1rem;">$mute @user <time> [reason]</code>
+                                <span style="font-size: 0.7rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 2px 8px; border-radius: 10px;">Moderation</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Timeout a member (e.g. 10m, 1h, 1d).</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="mod" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #ef4444; font-weight: 700; font-size: 1rem;">$warn @user <reason></code>
+                                <span style="font-size: 0.7rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 2px 8px; border-radius: 10px;">Moderation</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Issue a warning to a member (persisted & DMs user).</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="mod" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #ef4444; font-weight: 700; font-size: 1rem;">$purge <count></code>
+                                <span style="font-size: 0.7rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 2px 8px; border-radius: 10px;">Moderation</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Bulk delete up to 100 recent messages in channel.</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="mod" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #ef4444; font-weight: 700; font-size: 1rem;">$lock / $unlock</code>
+                                <span style="font-size: 0.7rem; background: rgba(239,68,68,0.15); color: #ef4444; padding: 2px 8px; border-radius: 10px;">Moderation</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Lock or unlock send message permissions for @everyone.</p>
+                        </div>
+
+                        <!-- Info -->
+                        <div class="cmd-card" data-cat="info" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #38bdf8; font-weight: 700; font-size: 1rem;">$stats</code>
+                                <span style="font-size: 0.7rem; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 2px 8px; border-radius: 10px;">Info</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">View live server member counts, channels, and warnings.</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="info" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #38bdf8; font-weight: 700; font-size: 1rem;">$userinfo [@user]</code>
+                                <span style="font-size: 0.7rem; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 2px 8px; border-radius: 10px;">Info</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Display member join date, roles, and warning history.</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="info" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #38bdf8; font-weight: 700; font-size: 1rem;">$ping / $uptime</code>
+                                <span style="font-size: 0.7rem; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 2px 8px; border-radius: 10px;">Info</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Check bot API response latency and online duration.</p>
+                        </div>
+
+                        <!-- Fun -->
+                        <div class="cmd-card" data-cat="fun" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #f59e0b; font-weight: 700; font-size: 1rem;">$roll / $flip</code>
+                                <span style="font-size: 0.7rem; background: rgba(245,158,11,0.15); color: #f59e0b; padding: 2px 8px; border-radius: 10px;">Fun</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Roll a dice or flip a coin for instant decisions.</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="fun" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #f59e0b; font-weight: 700; font-size: 1rem;">$8ball <question></code>
+                                <span style="font-size: 0.7rem; background: rgba(245,158,11,0.15); color: #f59e0b; padding: 2px 8px; border-radius: 10px;">Fun</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Ask the Magic 8-Ball any question.</p>
+                        </div>
+
+                        <div class="cmd-card" data-cat="fun" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #f59e0b; font-weight: 700; font-size: 1rem;">$rps <choice></code>
+                                <span style="font-size: 0.7rem; background: rgba(245,158,11,0.15); color: #f59e0b; padding: 2px 8px; border-radius: 10px;">Fun</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Play Rock Paper Scissors against the bot.</p>
+                        </div>
+
+                        <!-- Auto -->
+                        <div class="cmd-card" data-cat="auto" style="background: rgba(10, 11, 18, 0.6); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <code style="color: #10b981; font-weight: 700; font-size: 1rem;">Anti-Spam Auto-Mute</code>
+                                <span style="font-size: 0.7rem; background: rgba(16,185,129,0.15); color: #10b981; padding: 2px 8px; border-radius: 10px;">Auto</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Automated 5-minute timeout for sending 5+ messages in 6s.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="tab-config" class="tab-pane">
                 <form id="configForm" onsubmit="handleSaveConfig(event)">
                     <div class="panel-card" style="margin-bottom: 25px;">
@@ -1800,6 +1947,7 @@
         // Tab titles and descriptions
         const tabHeaders = {
             'dashboard': { title: 'Dashboard Overview', desc: 'System analytics and vital stats in real-time.' },
+            'commands': { title: 'Bot Command Directory', desc: 'Complete list of available bot commands and automated triggers.' },
             'config': { title: 'Bot Configuration', desc: 'Manage prefixes, channels, credentials, and API connections.' },
             'presence': { title: 'Presence Customizer', desc: 'Instantly modify status mode and rich activity indicators.' },
             'moderation': { title: 'Moderation Center', desc: 'Issue mod actions, manage warnings, and audit recent activity.' },
@@ -1809,13 +1957,42 @@
 
         // Initialize application on load
         window.addEventListener('load', () => {
-            if (!currentAuthToken) {
-                showLoginShield();
-            } else {
-                hideLoginShield();
-                startDashboardService();
-            }
+            hideLoginShield();
+            startDashboardService(); // Always fetch public stats on load!
+            updateAdminUIState(!!currentAuthToken);
         });
+
+        function updateAdminUIState(isAdmin) {
+            const topBtn = document.getElementById('topAdminBtn');
+            const sideBtn = document.getElementById('adminHeaderBtn');
+            const lockBadges = document.querySelectorAll('.lock-badge');
+
+            if (isAdmin) {
+                if (topBtn) {
+                    topBtn.innerHTML = '<i class="fa-solid fa-shield-check" style="color: var(--color-emerald)"></i> <span>Admin Active (Logout)</span>';
+                    topBtn.className = 'btn btn-secondary';
+                    topBtn.onclick = handleLogout;
+                }
+                if (sideBtn) {
+                    sideBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i>';
+                    sideBtn.title = 'Logout Admin Session';
+                    sideBtn.onclick = handleLogout;
+                }
+                lockBadges.forEach(el => el.style.display = 'none');
+            } else {
+                if (topBtn) {
+                    topBtn.innerHTML = '<i class="fa-solid fa-key"></i> <span>Admin Login</span>';
+                    topBtn.className = 'btn btn-primary';
+                    topBtn.onclick = showLoginShield;
+                }
+                if (sideBtn) {
+                    sideBtn.innerHTML = '<i class="fa-solid fa-key"></i>';
+                    sideBtn.title = 'Admin Login';
+                    sideBtn.onclick = showLoginShield;
+                }
+                lockBadges.forEach(el => el.style.display = 'inline-block');
+            }
+        }
 
         // ------------------ AUTHENTICATION FUNCTIONS ------------------
         function togglePasswordVisibility(inputId, toggleIconId) {
@@ -1868,8 +2045,8 @@
                     localStorage.setItem('bot_auth_token', currentAuthToken);
                     document.getElementById('adminPassword').value = '';
                     hideLoginShield();
-                    startDashboardService();
-                    showToast('Portal Connected', 'Welcome to the Bot Master Control Console.', 'success');
+                    updateAdminUIState(true);
+                    showToast('Admin Authenticated', 'Access granted to control panel.', 'success');
                 } else {
                     errorDiv.style.display = 'flex';
                     document.getElementById('adminPassword').focus();
@@ -1884,22 +2061,30 @@
         function handleLogout() {
             localStorage.removeItem('bot_auth_token');
             currentAuthToken = '';
-            stopDashboardService();
-            showLoginShield();
-            showToast('Portal Disconnected', 'Console session closed safely.', 'info');
+            updateAdminUIState(false);
+            switchTab('dashboard', document.querySelector('.nav-item'));
+            showToast('Admin Disconnected', 'Logged out of admin session.', 'info');
         }
 
         // ------------------ TAB NAVIGATOR ------------------
         function switchTab(tabId, element) {
+            const adminTabs = ['config', 'presence', 'moderation', 'broadcast', 'logs'];
+            if (adminTabs.includes(tabId) && !currentAuthToken) {
+                showToast('Admin Login Required', 'Please enter your password to access admin settings.', 'warning');
+                showLoginShield();
+                return;
+            }
+
             // Deactivate all nav options
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             // Activate current navigation option
-            element.classList.add('active');
+            if (element) element.classList.add('active');
 
             // Hide all tabs
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
             // Show select tab pane
-            document.getElementById(`tab-${tabId}`).classList.add('active');
+            const targetPane = document.getElementById(`tab-${tabId}`);
+            if (targetPane) targetPane.classList.add('active');
 
             // Update titles
             const header = tabHeaders[tabId];
@@ -1911,6 +2096,28 @@
             // Perform specific tab actions
             if (tabId === 'config') {
                 fetchConfig();
+            } else if (tabId === 'logs') {
+                fetchLogs();
+            } else if (tabId === 'moderation') {
+                fetchServersForModeration();
+            } else if (tabId === 'broadcast') {
+                fetchServers();
+            }
+        }
+
+        function filterCommands(cat, btnElement) {
+            document.querySelectorAll('.cmd-filter').forEach(b => b.classList.remove('active'));
+            if (btnElement) btnElement.classList.add('active');
+
+            const cards = document.querySelectorAll('#commandsGrid .cmd-card');
+            cards.forEach(card => {
+                if (cat === 'all' || card.getAttribute('data-cat') === cat) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
             } else if (tabId === 'broadcast') {
                 fetchServers();
             } else if (tabId === 'moderation') {

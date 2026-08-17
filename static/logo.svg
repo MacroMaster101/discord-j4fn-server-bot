@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="50%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </linearGradient>
+    <linearGradient id="innerGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff4d4d"/>
+      <stop offset="100%" stop-color="#990000"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Red Rounded Background Box -->
+  <rect width="500" height="500" rx="36" fill="url(#bgGrad)"/>
+  <rect width="470" height="470" x="15" y="15" rx="28" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="4"/>
+
+  <!-- J4FN Geometric White Monogram -->
+  <g transform="translate(145, 115) scale(0.95)" fill="#ffffff">
+    <!-- Left Vertical Pillar of 'J' -->
+    <polygon points="0,75 32,75 32,230 0,210"/>
+    <!-- Bottom Hook of 'J' -->
+    <polygon points="0,210 32,230 115,280 115,245 32,195"/>
+
+    <!-- Central Tall Vertical Spine '4/F' -->
+    <polygon points="62,25 96,25 96,305 62,285"/>
+
+    <!-- Top Slanted Roof Line -->
+    <polygon points="96,25 210,95 210,128 96,58"/>
+
+    <!-- Right Outer Frame & Horizontal Crossbar -->
+    <polygon points="125,120 210,175 210,270 125,215"/>
+
+    <!-- Inner Cutout / Negative Space of '4' -->
+    <polygon points="152,145 185,166 185,242 152,220" fill="url(#bgGrad)"/>
+    
+    <!-- Middle Horizontal Crossbar of 'F' -->
+    <polygon points="125,185 210,240 210,265 125,210"/>
+  </g>
+</svg>

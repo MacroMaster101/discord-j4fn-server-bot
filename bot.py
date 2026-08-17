@@ -125,8 +125,15 @@ def all_warnings_for_guild(guild_id):
 # ----------------- FLASK KEEP-ALIVE & ADMIN API -----------------
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
-app = Flask(__name__, template_folder=template_dir)
+static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 BOT_START_TIME = None
+
+
+@app.route('/favicon.ico')
+def favicon():
+    from flask import send_from_directory
+    return send_from_directory(static_dir, 'logo.svg', mimetype='image/svg+xml')
 
 
 def require_auth(f):
@@ -162,7 +169,6 @@ def api_login():
 
 
 @app.route("/api/stats", methods=["GET"])
-@require_auth
 def api_stats():
     uptime_seconds = 0
     uptime_str = "N/A"
