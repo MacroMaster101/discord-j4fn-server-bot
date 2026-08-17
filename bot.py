@@ -139,19 +139,32 @@ def favicon():
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # 1. Cloudflare Access header support
+        cf_email = request.headers.get("Cf-Access-Authenticated-User-Email")
+        if cf_email:
+            request.cf_user_email = cf_email
+            return f(*args, **kwargs)
+
+        # 2. Bearer token support
         auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return jsonify({"message": "Unauthorized"}), 401
-        token = auth_header.split(" ")[1]
-        if token != ADMIN_PASSWORD:
-            return jsonify({"message": "Unauthorized"}), 401
-        return f(*args, **kwargs)
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            if token == ADMIN_PASSWORD:
+                request.cf_user_email = "Local Admin"
+                return f(*args, **kwargs)
+
+        return jsonify({"message": "Unauthorized"}), 401
     return decorated
 
 
 @app.route("/")
 def home():
     return render_template("index.html")
+
+
+@app.route("/admin")
+def admin_page():
+    return render_template("admin.html")
 
 
 @app.route("/health")
@@ -164,10 +177,26 @@ def api_login():
     data = request.get_json() or {}
     password = data.get("password")
     if password == ADMIN_PASSWORD:
-        return jsonify({"token": ADMIN_PASSWORD}), 200
+        return jsonify({"token": ADMIN_PASSWORD, "email": "Local Admin"}), 200
     return jsonify({"message": "Invalid password"}), 401
 
 
+@app.route("/api/auth-check", methods=["GET"])
+def api_auth_check():
+    cf_email = request.headers.get("Cf-Access-Authenticated-User-Email")
+    if cf_email:
+        return jsonify({"authenticated": True, "type": "cloudflare", "email": cf_email}), 200
+
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        if token == ADMIN_PASSWORD:
+            return jsonify({"authenticated": True, "type": "token", "email": "Local Admin"}), 200
+
+    return jsonify({"authenticated": False}), 200
+
+
+@app.route("/api/public/stats", methods=["GET"])
 @app.route("/api/stats", methods=["GET"])
 def api_stats():
     uptime_seconds = 0

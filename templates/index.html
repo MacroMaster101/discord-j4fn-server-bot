@@ -2199,14 +2199,8 @@
         // Fetch Stats
         async function fetchStats() {
             try {
-                const response = await fetch('/api/stats', {
-                    headers: { 'Authorization': `Bearer ${currentAuthToken}` }
-                });
-
-                if (response.status === 401) {
-                    handleLogout();
-                    return;
-                }
+                const headers = currentAuthToken ? { 'Authorization': `Bearer ${currentAuthToken}` } : {};
+                const response = await fetch('/api/public/stats', { headers });
 
                 if (!response.ok) throw new Error('Stats failure');
                 const data = await response.json();
@@ -2742,6 +2736,7 @@
 
         // ------------------ LIVE CONSOLE SERVICES ------------------
         async function fetchLogs() {
+            if (!currentAuthToken) return;
             if (document.getElementById('tab-logs').style.display === 'none' && !statsInterval) return;
 
             try {
