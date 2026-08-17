@@ -184,7 +184,7 @@ async function runModAction(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/api/mod-action', {
+        const res = await fetch('/api/mod/action', {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)

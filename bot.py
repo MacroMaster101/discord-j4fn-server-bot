@@ -627,26 +627,6 @@ def keep_alive():
 
 import secrets
 
-load_dotenv()
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-WELCOME_CHANNEL_ID = os.getenv("WELCOME_CHANNEL_ID")
-MOD_LOG_CHANNEL_ID = os.getenv("MOD_LOG_CHANNEL_ID")
-MUTED_ROLE_NAME = os.getenv("MUTED_ROLE_NAME", "Muted")
-PREFIX = os.getenv("PREFIX", "$")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-STREAMING_URL = os.getenv("STREAMING_URL", "https://j4fn.site")
-
-if not ADMIN_PASSWORD:
-    ADMIN_PASSWORD = secrets.token_urlsafe(10)
-    try:
-        update_env_variable("ADMIN_PASSWORD", ADMIN_PASSWORD)
-    except Exception:
-        pass
-    print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
-
-
-
-
 
 def update_env_variable(key, value):
     env_path = ".env"
@@ -666,6 +646,24 @@ def update_env_variable(key, value):
         lines.append(new_line)
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
+
+
+load_dotenv()
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+WELCOME_CHANNEL_ID = os.getenv("WELCOME_CHANNEL_ID")
+MOD_LOG_CHANNEL_ID = os.getenv("MOD_LOG_CHANNEL_ID")
+MUTED_ROLE_NAME = os.getenv("MUTED_ROLE_NAME", "Muted")
+PREFIX = os.getenv("PREFIX", "$")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+STREAMING_URL = os.getenv("STREAMING_URL", "https://j4fn.site")
+
+if not ADMIN_PASSWORD:
+    ADMIN_PASSWORD = secrets.token_urlsafe(10)
+    try:
+        update_env_variable("ADMIN_PASSWORD", ADMIN_PASSWORD)
+    except Exception:
+        pass
+    print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
 
 
 intents = discord.Intents.default()
