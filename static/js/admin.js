@@ -10,7 +10,7 @@ window.addEventListener('load', async () => {
 async function checkAuth() {
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const res = await fetch('/api/auth-check', { headers });
+        const res = await fetch('/api/auth-check', { headers, credentials: 'include' });
         const data = await res.json();
 
         if (data.authenticated) {
