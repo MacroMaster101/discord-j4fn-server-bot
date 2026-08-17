@@ -18,23 +18,37 @@
 </head>
 <body>
 
-    <!-- CLOUDFLARE ZERO TRUST ACCESS MODAL -->
+    <!-- CLOUDFLARE & ADMIN PASSWORD ACCESS MODAL -->
     <div id="adminLoginOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 6, 10, 0.96); display: flex; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(15px);">
-        <div style="background: var(--bg-panel); border: 1px solid rgba(243, 128, 32, 0.3); border-radius: var(--radius-lg); padding: 45px 40px; width: 100%; max-width: 440px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 30px rgba(243, 128, 32, 0.25);">
-            <img src="/static/logo.png" alt="J4FN Logo" style="width: 70px; height: 70px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(239,68,68,0.5);">
+        <div style="background: var(--bg-panel); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-lg); padding: 40px; width: 100%; max-width: 440px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 30px rgba(239, 68, 68, 0.25);">
+            <img src="/static/logo.png" alt="J4FN Logo" style="width: 64px; height: 64px; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 0 25px rgba(239,68,68,0.5);">
             
-            <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(243, 128, 32, 0.12); color: #f38020; border: 1px solid rgba(243, 128, 32, 0.3); padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 15px;">
-                <i class="fa-solid fa-shield-halved"></i> Cloudflare Zero Trust
-            </div>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 6px;">J4FN Admin Portal</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">Authenticate with your Cloudflare Zero Trust identity or admin key.</p>
             
-            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.65rem; font-weight: 800; color: #fff; margin-bottom: 8px;">J4FN Admin Console</h2>
-            <p style="color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 30px; line-height: 1.5;">Access to this operations console is restricted. Authenticate with your Cloudflare Zero Trust identity to proceed.</p>
-            
-            <a href="/cdn-cgi/access/login" class="btn" style="width: 100%; justify-content: center; padding: 14px; font-size: 1rem; background: #f38020; color: #fff; border-radius: var(--radius-md); font-weight: 700; box-shadow: 0 4px 20px rgba(243, 128, 32, 0.4); text-decoration: none;">
-                <i class="fa-solid fa-cloud"></i> Sign in with Cloudflare
+            <a href="/cdn-cgi/access/login" class="btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 0.95rem; background: #f38020; color: #fff; border-radius: var(--radius-md); font-weight: 700; box-shadow: 0 4px 20px rgba(243, 128, 32, 0.4); text-decoration: none; margin-bottom: 20px;">
+                <i class="fa-solid fa-cloud"></i> Sign in with Cloudflare Access
             </a>
 
-            <p style="color: var(--text-muted); font-size: 0.78rem; margin-top: 20px;">Protected by Cloudflare Access Identity</p>
+            <div style="display: flex; align-items: center; margin: 15px 0; color: var(--text-muted); font-size: 0.78rem;">
+                <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
+                <span style="padding: 0 10px; text-transform: uppercase; font-size: 0.7rem; font-weight: 700;">OR ENTER ADMIN KEY</span>
+                <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)">
+                <div style="margin-bottom: 16px; text-align: left;">
+                    <input type="password" id="adminConsolePassword" class="form-control" placeholder="Enter admin password..." required style="padding: 11px 14px; font-size: 0.9rem;">
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 11px; font-size: 0.95rem;">
+                    <i class="fa-solid fa-key"></i> Authenticate Key
+                </button>
+                
+                <div id="adminLoginErr" style="display: none; color: var(--color-red); font-size: 0.82rem; margin-top: 12px; align-items: center; justify-content: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-exclamation"></i> Invalid password. Please try again.
+                </div>
+            </form>
         </div>
     </div>
 
