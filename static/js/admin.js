@@ -246,8 +246,12 @@ function logoutAdmin() {
     // localStorage. Clearing the local token alone would leave the Access session
     // active and let the next visit to /admin straight back in, so hand off to
     // Cloudflare's own logout endpoint to actually end the session.
+    // Without returnTo the endpoint renders Cloudflare's own "logged out" page and
+    // leaves the user stranded there; with it, Cloudflare clears the session and
+    // then 302s straight back to the public landing page.
     if (authType === 'cloudflare') {
-        window.location.href = '/cdn-cgi/access/logout';
+        const home = `${window.location.origin}/`;
+        window.location.href = `/cdn-cgi/access/logout?returnTo=${encodeURIComponent(home)}`;
         return;
     }
     window.location.href = '/';
