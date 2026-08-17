@@ -1,13 +1,21 @@
-# 🤖 JUST FOR FUN — Discord Server Moderation Bot & Dashboard
+# 🤖 JUST FOR FUN — Discord Server Moderation Bot & Web Portal
 
 ![J4FN Banner](static/logo.png)
 
-[![Discord](https://img.shields.io/badge/Discord-Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com)
-[![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Zero_Trust-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://cloudflare.com)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+<div align="center">
+
+[![Discord Bot](https://img.shields.io/badge/Discord.py-v2.3+-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com)
+[![Cloudflare Zero Trust](https://img.shields.io/badge/Cloudflare-Zero_Trust-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://cloudflare.com)
+[![AWS EC2](https://img.shields.io/badge/AWS-EC2_Deployment-FF9900?style=for-the-badge&logo=amazonec2&logoColor=white)](https://aws.amazon.com)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose_Build-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 
-**JUST FOR FUN (J4FN Bot)** is a production-grade Discord server moderation and community management bot built with `discord.py` and `Flask`. It features a public status landing page (`bot.j4fn.site`), automated anti-spam protection, persistent member warnings, welcome embeds, presence rotation, and a protected Admin Operations Console (`bot.j4fn.site/admin`) supporting **Cloudflare Zero Trust Access**.
+</div>
+
+---
+
+### 📝 Repository Description (For GitHub About Section)
+> 🤖 Official J4FN Discord Server Moderation Bot & Web Portal. Features automated anti-spam, member warnings system, welcome embeds, dynamic presence rotation, and a Cloudflare Zero Trust protected Admin Operations Console. Deployed 24/7 on AWS EC2 & Cloudflare Tunnels.
 
 ---
 
