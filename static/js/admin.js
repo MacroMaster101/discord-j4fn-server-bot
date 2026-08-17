@@ -1,5 +1,3 @@
-let authToken = localStorage.getItem('bot_auth_token') || '';
-
 window.addEventListener('load', async () => {
     await checkAuth();
     loadStats();
@@ -9,9 +7,7 @@ window.addEventListener('load', async () => {
 
 async function checkAuth() {
     try {
-        const res = await fetch('/api/auth-check', {
-            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
-        });
+        const res = await fetch('/api/auth-check');
         const data = await res.json();
         if (data.authenticated) {
             document.getElementById('adminLoginOverlay').style.display = 'none';
@@ -24,35 +20,6 @@ async function checkAuth() {
     } catch (e) {
         console.error('Auth check error:', e);
         document.getElementById('adminLoginOverlay').style.display = 'flex';
-    }
-}
-
-async function handleAdminLogin(e) {
-    e.preventDefault();
-    const password = document.getElementById('adminConsolePassword').value;
-    const errDiv = document.getElementById('adminLoginErr');
-    errDiv.style.display = 'none';
-
-    try {
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password })
-        });
-
-        if (res.ok) {
-            const data = await res.json();
-            authToken = data.token;
-            localStorage.setItem('bot_auth_token', authToken);
-            document.getElementById('adminLoginOverlay').style.display = 'none';
-            document.getElementById('userIdentity').innerText = data.email || 'Local Admin';
-            loadStats();
-            loadConfig();
-        } else {
-            errDiv.style.display = 'flex';
-        }
-    } catch (e) {
-        errDiv.style.display = 'flex';
     }
 }
 
@@ -73,9 +40,7 @@ async function loadStats() {
 
 async function loadConfig() {
     try {
-        const servRes = await fetch('/api/servers', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
+        const servRes = await fetch('/api/servers');
         if (servRes.ok) {
             const servers = await servRes.json();
             
@@ -109,9 +74,7 @@ async function loadConfig() {
             });
         }
 
-        const confRes = await fetch('/api/config', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
+        const confRes = await fetch('/api/config');
         if (confRes.ok) {
             const cfg = await confRes.json();
             document.getElementById('cfgPrefix').value = cfg.PREFIX || '$';
@@ -130,26 +93,19 @@ async function saveConfig(e) {
         PREFIX: document.getElementById('cfgPrefix').value,
         MUTED_ROLE_NAME: document.getElementById('cfgMutedRole').value,
         WELCOME_CHANNEL_ID: document.getElementById('cfgWelcomeChannel').value,
-        MOD_LOG_CHANNEL_ID: document.getElementById('cfgModLogChannel').value,
-        ADMIN_PASSWORD: document.getElementById('cfgPassword').value
+        MOD_LOG_CHANNEL_ID: document.getElementById('cfgModLogChannel').value
     };
 
     try {
         const res = await fetch('/api/config', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (res.ok) {
             alert('Settings updated successfully!');
-            if (payload.ADMIN_PASSWORD) {
-                const data = await res.json();
-                authToken = data.token;
-                localStorage.setItem('bot_auth_token', authToken);
-            }
+        } else {
+            alert('Failed saving configuration.');
         }
     } catch (e) {
         alert('Failed saving configuration.');
@@ -167,10 +123,7 @@ async function savePresence(e) {
     try {
         const res = await fetch('/api/presence', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (res.ok) alert('Presence updated on Discord!');
@@ -190,10 +143,7 @@ async function runModAction(e) {
     try {
         const res = await fetch('/api/mod-action', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -216,9 +166,7 @@ async function loadGuildWarnings() {
     if (!guildId) return;
 
     try {
-        const res = await fetch(`/api/mod/warnings?guild_id=${guildId}`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
+        const res = await fetch(`/api/mod/warnings?guild_id=${guildId}`);
         if (res.ok) {
             const data = await res.json();
             if (!data.warnings || data.warnings.length === 0) {
@@ -246,6 +194,5 @@ async function loadGuildWarnings() {
 }
 
 function logoutAdmin() {
-    localStorage.removeItem('bot_auth_token');
-    window.location.href = '/';
+    window.location.href = '/cdn-cgi/access/logout';
 }
