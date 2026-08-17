@@ -136,6 +136,23 @@ def favicon():
     return send_from_directory(static_dir, 'favicon.ico', mimetype='image/x-icon')
 
 
+@app.template_global()
+def asset(filename):
+    """Return a static URL stamped with the file's mtime.
+
+    Static files are served with a multi-hour max-age, so without a changing URL
+    a browser keeps running the previous deploy's CSS/JS until that expires. The
+    stamp changes whenever the file does, which makes each deploy a fresh URL and
+    leaves the long cache lifetime intact for unchanged assets.
+    """
+    path = os.path.join(static_dir, filename.replace("/", os.sep))
+    try:
+        stamp = int(os.path.getmtime(path))
+    except OSError:
+        stamp = 0
+    return f"/static/{filename}?v={stamp}"
+
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
