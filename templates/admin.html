@@ -364,6 +364,30 @@
 </head>
 <body>
 
+    <!-- ADMIN LOGIN SHIELD MODAL -->
+    <div id="adminLoginOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 6, 10, 0.95); display: flex; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(15px);">
+        <div style="background: var(--bg-panel); border: 1px solid var(--border-glow); border-radius: var(--radius-lg); padding: 40px; width: 100%; max-width: 440px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 30px rgba(239, 68, 68, 0.2);">
+            <img src="/static/logo.png" alt="J4FN Logo" style="width: 64px; height: 64px; border-radius: 14px; margin-bottom: 15px; box-shadow: 0 0 20px rgba(239,68,68,0.4);">
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 6px;">J4FN Admin Console</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 25px;">Enter your administrative password or authenticate via Cloudflare Access to proceed.</p>
+            
+            <form onsubmit="handleAdminLogin(event)">
+                <div style="position: relative; margin-bottom: 20px; text-align: left;">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">Admin Password</label>
+                    <input type="password" id="adminConsolePassword" class="form-control" placeholder="Enter password (e.g. AdminJ4FN)" required style="padding-left: 14px;">
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; font-size: 1rem;">
+                    <i class="fa-solid fa-key"></i> Authenticate Console
+                </button>
+                
+                <div id="adminLoginErr" style="display: none; color: var(--color-red); font-size: 0.85rem; margin-top: 15px; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fa-solid fa-circle-exclamation"></i> Invalid password. Please try again.
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- NAV BAR -->
     <nav class="admin-nav">
         <div class="brand-box">
@@ -588,13 +612,45 @@
                 });
                 const data = await res.json();
                 if (data.authenticated) {
+                    document.getElementById('adminLoginOverlay').style.display = 'none';
                     document.getElementById('userIdentity').innerText = data.email || 'Cloudflare Admin';
+                    loadStats();
+                    loadConfig();
                 } else {
-                    // Redirect to home page if unauthorized
-                    window.location.href = '/';
+                    document.getElementById('adminLoginOverlay').style.display = 'flex';
                 }
             } catch (e) {
                 console.error(e);
+                document.getElementById('adminLoginOverlay').style.display = 'flex';
+            }
+        }
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const password = document.getElementById('adminConsolePassword').value;
+            const errDiv = document.getElementById('adminLoginErr');
+            errDiv.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    authToken = data.token;
+                    localStorage.setItem('bot_auth_token', authToken);
+                    document.getElementById('adminLoginOverlay').style.display = 'none';
+                    document.getElementById('userIdentity').innerText = data.email || 'Local Admin';
+                    loadStats();
+                    loadConfig();
+                } else {
+                    errDiv.style.display = 'flex';
+                }
+            } catch (e) {
+                errDiv.style.display = 'flex';
             }
         }
 
