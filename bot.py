@@ -589,7 +589,7 @@ def keep_alive():
     t.start()
 
 
-# ----------------- CONFIG -----------------
+import secrets
 
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -597,8 +597,17 @@ WELCOME_CHANNEL_ID = os.getenv("WELCOME_CHANNEL_ID")
 MOD_LOG_CHANNEL_ID = os.getenv("MOD_LOG_CHANNEL_ID")
 MUTED_ROLE_NAME = os.getenv("MUTED_ROLE_NAME", "Muted")
 PREFIX = os.getenv("PREFIX", "$")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-STREAMING_URL = os.getenv("STREAMING_URL", "https://twitch.tv/j4fn")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+STREAMING_URL = os.getenv("STREAMING_URL", "https://j4fn.site")
+
+if not ADMIN_PASSWORD:
+    ADMIN_PASSWORD = secrets.token_urlsafe(10)
+    try:
+        update_env_variable("ADMIN_PASSWORD", ADMIN_PASSWORD)
+    except Exception:
+        pass
+    print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
+
 
 
 

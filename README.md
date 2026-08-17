@@ -200,6 +200,33 @@ docker compose up -d --build
 
 ---
 
+## 🌐 Cloudflare Tunnel Setup (HTTPS & Custom Subdomain)
+
+To host your dashboard securely over HTTPS (e.g., `bot.j4fn.site`) without opening port 8080 publicly on EC2:
+
+1. **Create Tunnel in Cloudflare Zero Trust**:
+   - Go to **Cloudflare Zero Trust** -> **Networks** -> **Tunnels** -> **Add a Tunnel**.
+   - Select **Cloudflared**, name it (e.g. `j4fn-server-bot`), and copy the Tunnel Token (`TUNNEL_TOKEN`).
+
+2. **Configure Public Hostname**:
+   - Subdomain: `bot` (or `server`)
+   - Domain: `j4fn.site`
+   - Type: `HTTP`
+   - URL: `bot:8080` (when using Docker Compose tunnel service) or `localhost:8080` (if using standalone cloudflared).
+
+3. **Add `TUNNEL_TOKEN` to `.env`**:
+   ```env
+   TUNNEL_TOKEN=eyJh...your_cloudflare_tunnel_token...
+   ```
+
+4. **Launch Bot & Tunnel**:
+   ```bash
+   docker compose up -d --build
+   ```
+
+---
+
+
 ## 🔄 Automatic Deployment with GitHub CI/CD
 
 This repository includes a secure, automatic deployment pipeline via **GitHub Actions** located in `.github/workflows/deploy.yml`.
