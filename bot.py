@@ -133,7 +133,7 @@ BOT_START_TIME = None
 @app.route('/favicon.ico')
 def favicon():
     from flask import send_from_directory
-    return send_from_directory(static_dir, 'logo.svg', mimetype='image/svg+xml')
+    return send_from_directory(static_dir, 'favicon.ico', mimetype='image/x-icon')
 
 
 def require_auth(f):
