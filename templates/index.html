@@ -1354,6 +1354,31 @@
 
             <!-- ------------------ TAB: DASHBOARD ------------------ -->
             <div id="tab-dashboard" class="tab-pane active">
+                
+                <!-- PUBLIC HERO BANNER -->
+                <div class="panel-card" style="margin-bottom: 25px; background: linear-gradient(135deg, rgba(220,38,38,0.15) 0%, rgba(18,20,32,0.8) 100%); border: 1px solid rgba(220,38,38,0.3); padding: 30px; border-radius: var(--radius-lg);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <img src="/static/logo.png" alt="J4FN Logo" style="width: 70px; height: 70px; border-radius: 16px; box-shadow: 0 0 25px rgba(220,38,38,0.5);">
+                            <div>
+                                <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.8rem; font-weight: 800; color: #fff; margin-bottom: 4px;">JUST FOR FUN</h2>
+                                <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 10px;">The ultimate Discord server moderation & utility bot for modern communities.</p>
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <span style="background: rgba(16,185,129,0.15); color: var(--color-emerald); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;"><i class="fa-solid fa-circle"></i> Online 24/7</span>
+                                    <span style="background: rgba(220,38,38,0.15); color: #ef4444; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;"><i class="fa-solid fa-shield-halved"></i> Moderation Suite</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <a href="https://discord.com/oauth2/authorize?client_id=951917671027458108&permissions=8&scope=bot" target="_blank" class="btn btn-primary" style="padding: 12px 20px; text-decoration: none;">
+                                <i class="fa-brands fa-discord"></i> Add to Discord
+                            </a>
+                            <button id="heroAdminBtn" onclick="showLoginShield()" class="btn btn-secondary" style="padding: 12px 20px;">
+                                <i class="fa-solid fa-key"></i> Admin Login
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-details">
@@ -1966,18 +1991,25 @@
         function updateAdminUIState(isAdmin) {
             const topBtn = document.getElementById('topAdminBtn');
             const sideBtn = document.getElementById('adminHeaderBtn');
+            const heroAdminBtn = document.getElementById('heroAdminBtn');
             const lockBadges = document.querySelectorAll('.lock-badge');
 
             if (isAdmin) {
                 if (topBtn) {
-                    topBtn.innerHTML = '<i class="fa-solid fa-shield-check" style="color: var(--color-emerald)"></i> <span>Admin Active (Logout)</span>';
-                    topBtn.className = 'btn btn-secondary';
+                    topBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> <span>Logout Admin</span>';
+                    topBtn.className = 'btn btn-danger';
                     topBtn.onclick = handleLogout;
                 }
                 if (sideBtn) {
                     sideBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i>';
                     sideBtn.title = 'Logout Admin Session';
+                    sideBtn.style.color = '#ef4444';
                     sideBtn.onclick = handleLogout;
+                }
+                if (heroAdminBtn) {
+                    heroAdminBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Logout Admin';
+                    heroAdminBtn.className = 'btn btn-danger';
+                    heroAdminBtn.onclick = handleLogout;
                 }
                 lockBadges.forEach(el => el.style.display = 'none');
             } else {
@@ -1989,7 +2021,13 @@
                 if (sideBtn) {
                     sideBtn.innerHTML = '<i class="fa-solid fa-key"></i>';
                     sideBtn.title = 'Admin Login';
+                    sideBtn.style.color = 'inherit';
                     sideBtn.onclick = showLoginShield;
+                }
+                if (heroAdminBtn) {
+                    heroAdminBtn.innerHTML = '<i class="fa-solid fa-key"></i> Admin Login';
+                    heroAdminBtn.className = 'btn btn-secondary';
+                    heroAdminBtn.onclick = showLoginShield;
                 }
                 lockBadges.forEach(el => el.style.display = 'inline-block');
             }
