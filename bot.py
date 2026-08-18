@@ -185,6 +185,30 @@ def admin_page():
     return render_template("admin.html")
 
 
+@app.route("/login")
+def login_page():
+    """Public sign-in chooser.
+
+    Cloudflare Access gates /admin at the edge, so a request there never reaches
+    this app — which means the console's own token form is unreachable in
+    production. This page sits outside the Access application so both routes can
+    be offered: Access sends you through /admin, the token opens /console.
+    """
+    return render_template("login.html")
+
+
+@app.route("/console")
+@app.route("/console/")
+def console_page():
+    """Same console as /admin, on a path Cloudflare Access does not gate.
+
+    Reached with the admin token. The page shell is public; every endpoint behind
+    it still requires the token, and the client talks to /api/... rather than the
+    Access-gated /admin/api/... mount.
+    """
+    return render_template("admin.html")
+
+
 @app.route("/health")
 def health():
     return "OK", 200
@@ -196,13 +220,70 @@ def health():
 # headers, so Access logins could never be detected there. The admin dashboard must use
 # the /admin/api/... paths; /api/public/stats stays public for the landing page.
 
+# Token login is reachable from the internet (Cloudflare Access only gates /admin*),
+# so throttle it: LOGIN_MAX_ATTEMPTS failures from one IP within LOGIN_WINDOW start a
+# LOGIN_LOCKOUT cooldown. Without this the password is exposed to unlimited guessing.
+LOGIN_MAX_ATTEMPTS = 6
+LOGIN_WINDOW = 300.0      # seconds a failure counts against the caller
+LOGIN_LOCKOUT = 900.0     # seconds locked out once the limit is hit
+_login_failures = collections.defaultdict(collections.deque)
+_login_lockouts = {}
+login_lock = threading.Lock()
+
+
+def _client_ip():
+    # Behind the tunnel every request arrives from Cloudflare, so the real client is
+    # in CF-Connecting-IP; remote_addr alone would rate-limit all users as one.
+    return (request.headers.get("CF-Connecting-IP")
+            or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or request.remote_addr
+            or "unknown")
+
+
+def _login_blocked(ip, now):
+    until = _login_lockouts.get(ip)
+    if until and now < until:
+        return int(until - now)
+    if until:
+        del _login_lockouts[ip]
+    return 0
+
+
+def _record_login_failure(ip, now):
+    bucket = _login_failures[ip]
+    bucket.append(now)
+    while bucket and now - bucket[0] > LOGIN_WINDOW:
+        bucket.popleft()
+    if len(bucket) >= LOGIN_MAX_ATTEMPTS:
+        _login_lockouts[ip] = now + LOGIN_LOCKOUT
+        bucket.clear()
+        add_log(f"Admin login locked out for {ip} after {LOGIN_MAX_ATTEMPTS} failures", "warning")
+
+
 @app.route("/api/login", methods=["POST"])
 @app.route("/admin/api/login", methods=["POST"])
 def api_login():
     data = request.get_json() or {}
     password = data.get("password")
-    if password == ADMIN_PASSWORD:
-        return jsonify({"token": ADMIN_PASSWORD, "email": "Local Admin"}), 200
+    ip = _client_ip()
+    now = time.time()
+
+    with login_lock:
+        retry_after = _login_blocked(ip, now)
+        if retry_after:
+            return jsonify({
+                "message": f"Too many attempts. Try again in {retry_after // 60 + 1} minute(s).",
+            }), 429
+
+        # Constant-time compare so a wrong password cannot be narrowed down by timing.
+        if password is not None and secrets.compare_digest(str(password), str(ADMIN_PASSWORD)):
+            _login_failures.pop(ip, None)
+            add_log(f"Admin token login succeeded from {ip}", "success")
+            return jsonify({"token": ADMIN_PASSWORD, "email": "Local Admin"}), 200
+
+        _record_login_failure(ip, now)
+
+    add_log(f"Admin token login failed from {ip}", "warning")
     return jsonify({"message": "Invalid password"}), 401
 
 

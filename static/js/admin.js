@@ -1,6 +1,12 @@
 let authToken = localStorage.getItem('bot_auth_token') || '';
 let authType = '';
 
+// Two mounts serve the same console. Under /admin, Cloudflare Access gates the path
+// and injects the Cf-Access-* identity headers, so calls must stay under /admin/api
+// to carry that identity. Under /console (reached with the admin token) the Access
+// app does not apply, so the ungated /api mount is used with a bearer token instead.
+const API = window.location.pathname.startsWith('/admin') ? '/admin/api' : '/api';
+
 window.addEventListener('load', async () => {
     await checkAuth();
     loadStats();
@@ -11,7 +17,7 @@ window.addEventListener('load', async () => {
 async function checkAuth() {
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const res = await fetch('/admin/api/auth-check', { headers, credentials: 'include' });
+        const res = await fetch(`${API}/auth-check`, { headers, credentials: 'include' });
         const data = await res.json();
 
         if (data.authenticated) {
@@ -36,7 +42,7 @@ async function handleAdminLogin(e) {
     errDiv.style.display = 'none';
 
     try {
-        const res = await fetch('/admin/api/login', {
+        const res = await fetch(`${API}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password })
@@ -60,7 +66,7 @@ async function handleAdminLogin(e) {
 
 async function loadStats() {
     try {
-        const res = await fetch('/admin/api/stats');
+        const res = await fetch(`${API}/stats`);
         const data = await res.json();
 
         document.getElementById('mStatus').innerText = (data.status || 'online').toUpperCase();
@@ -76,7 +82,7 @@ async function loadStats() {
 async function loadConfig() {
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const servRes = await fetch('/admin/api/servers', { headers });
+        const servRes = await fetch(`${API}/servers`, { headers });
         if (servRes.ok) {
             const servers = await servRes.json();
             
@@ -110,7 +116,7 @@ async function loadConfig() {
             });
         }
 
-        const confRes = await fetch('/admin/api/config', { headers });
+        const confRes = await fetch(`${API}/config`, { headers });
         if (confRes.ok) {
             const cfg = await confRes.json();
             document.getElementById('cfgPrefix').value = cfg.PREFIX || '$';
@@ -136,7 +142,7 @@ async function saveConfig(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/admin/api/config', {
+        const res = await fetch(`${API}/config`, {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -163,7 +169,7 @@ async function savePresence(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/admin/api/presence', {
+        const res = await fetch(`${API}/presence`, {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -186,7 +192,7 @@ async function runModAction(e) {
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-        const res = await fetch('/admin/api/mod/action', {
+        const res = await fetch(`${API}/mod/action`, {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -212,7 +218,7 @@ async function loadGuildWarnings() {
 
     try {
         const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const res = await fetch(`/admin/api/mod/warnings?guild_id=${guildId}`, { headers });
+        const res = await fetch(`${API}/mod/warnings?guild_id=${guildId}`, { headers });
         if (res.ok) {
             const data = await res.json();
             if (!data.warnings || data.warnings.length === 0) {

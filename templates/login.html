@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J4FN ADMIN | Sign In</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+</head>
+<body style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;">
+
+    <main style="background: var(--bg-panel); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-lg); padding: 40px; width: 100%; max-width: 440px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 30px rgba(239, 68, 68, 0.25);">
+
+        <img src="/static/logo.png" alt="J4FN Logo" style="width: 64px; height: 64px; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 0 25px rgba(239,68,68,0.5);">
+
+        <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 6px;">J4FN Admin Portal</h1>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">Choose how you want to sign in.</p>
+
+        <!-- /admin is inside the Cloudflare Access application, so simply requesting it
+             makes Cloudflare present its own login and then hand the identity to the
+             console. This page itself sits outside that application so the token option
+             below stays reachable when Access is unavailable. -->
+        <a href="/admin" class="btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 0.95rem; background: #f38020; color: #fff; border-radius: var(--radius-md); font-weight: 700; box-shadow: 0 4px 20px rgba(243, 128, 32, 0.4); text-decoration: none;">
+            <i class="fa-solid fa-cloud"></i> Sign in with Cloudflare Access
+        </a>
+
+        <div style="display: flex; align-items: center; margin: 20px 0 15px; color: var(--text-muted); font-size: 0.78rem;">
+            <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
+            <span style="padding: 0 10px; text-transform: uppercase; font-size: 0.7rem; font-weight: 700;">OR ENTER ADMIN KEY</span>
+            <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
+        </div>
+
+        <form onsubmit="handleLogin(event)">
+            <div style="margin-bottom: 16px; text-align: left;">
+                <label class="sr-only" for="adminPassword">Admin password</label>
+                <input type="password" id="adminPassword" class="form-control" placeholder="Enter admin password..." autocomplete="current-password" required style="padding: 11px 14px; font-size: 0.9rem;">
+            </div>
+
+            <button type="submit" id="loginBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 11px; font-size: 0.95rem;">
+                <i class="fa-solid fa-key"></i> Authenticate Key
+            </button>
+
+            <div id="loginErr" style="display: none; color: var(--color-red); font-size: 0.82rem; margin-top: 12px; align-items: center; justify-content: center; gap: 6px;">
+                <i class="fa-solid fa-circle-exclamation"></i> <span id="loginErrText">Invalid password. Please try again.</span>
+            </div>
+        </form>
+
+        <p style="margin-top: 22px; font-size: 0.78rem;">
+            <a href="/" style="color: var(--text-muted); text-decoration: none;">&larr; Back to public status</a>
+        </p>
+    </main>
+
+    <script src="{{ asset('js/login.js') }}"></script>
+</body>
+</html>
