@@ -209,6 +209,14 @@ def console_page():
     return render_template("admin.html")
 
 
+@app.route("/robots.txt")
+def robots():
+    # /console and /login sit outside the Cloudflare Access application, so unlike
+    # /admin they are genuinely crawlable — keep them out of search results.
+    body = "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /console\nDisallow: /login\n"
+    return app.response_class(body, mimetype="text/plain")
+
+
 @app.route("/health")
 def health():
     return "OK", 200
