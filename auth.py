@@ -20,6 +20,13 @@ API = "https://discord.com/api/v10"
 AUTHORIZE = "https://discord.com/oauth2/authorize"
 SCOPES = "identify guilds"
 
+# Discord fronts its API with Cloudflare, which rejects clients by signature.
+# urllib's default "Python-urllib/3.x" is refused outright with HTTP 403 and
+# "error code: 1010" before the request ever reaches the API, so every call has
+# to identify itself the way Discord documents.
+USER_AGENT = ("DiscordBot (https://github.com/MacroMaster101/"
+              "discord-j4fn-server-bot, 1.0)")
+
 # Discord permission bits. Either of these means "runs this server".
 MANAGE_GUILD = 1 << 5
 ADMINISTRATOR = 1 << 3
@@ -67,7 +74,9 @@ def authorize_url(state):
 
 def _request(url, *, data=None, headers=None, timeout=10):
     body = urllib.parse.urlencode(data).encode() if data else None
-    request = urllib.request.Request(url, data=body, headers=headers or {})
+    sent = {"User-Agent": USER_AGENT, "Accept": "application/json"}
+    sent.update(headers or {})
+    request = urllib.request.Request(url, data=body, headers=sent)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))

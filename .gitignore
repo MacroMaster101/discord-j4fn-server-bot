@@ -1,5 +1,8 @@
-# Environment variables
+# Environment variables. The glob matters: a .env.bak left by an edit holds the
+# same secrets as .env and would otherwise be untracked, not ignored.
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/

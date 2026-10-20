@@ -307,13 +307,21 @@ def require_guild_access(f):
 
 # ----------------- DISCORD SIGN-IN -----------------
 
+def _no_store(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.route("/auth/discord")
 def auth_discord_start():
     if not auth.is_configured():
         return render_template("index.html"), 503
     state = auth.new_state()
     session["oauth_state"] = state
-    return redirect(auth.authorize_url(state))
+    # This response both sets the state cookie and redirects. If anything caches
+    # it, a later visitor gets someone else's state and the callback rejects it.
+    return _no_store(app.make_response(redirect(auth.authorize_url(state))))
 
 
 @app.route("/auth/discord/callback")
@@ -321,26 +329,30 @@ def auth_discord_callback():
     if not auth.is_configured():
         return redirect("/")
 
+    # Checked first so cancelling at Discord reports itself as a cancellation
+    # rather than as the state mismatch it would otherwise look like.
+    if request.args.get("error"):
+        session.pop("oauth_state", None)
+        return redirect("/dashboard?error=denied")
+
     # The state proves the callback belongs to the flow this browser started.
     expected = session.pop("oauth_state", None)
     supplied = request.args.get("state", "")
     if not expected or not secrets.compare_digest(expected, supplied):
-        add_log("Discord sign-in rejected: state mismatch", "warning")
-        return redirect("/login?error=state")
-
-    if request.args.get("error"):
-        return redirect("/login?error=denied")
+        add_log("Discord sign-in rejected: state mismatch "
+                "(had cookie state: %s)" % bool(expected), "warning")
+        return redirect("/dashboard?error=state")
 
     code = request.args.get("code", "")
     if not code:
-        return redirect("/login?error=nocode")
+        return redirect("/dashboard?error=nocode")
 
     try:
         token = auth.exchange_code(code)
         data = auth.build_session(token, bot_guild_ids())
     except auth.OAuthError as e:
         add_log(f"Discord sign-in failed: {e}", "error")
-        return redirect("/login?error=discord")
+        return redirect("/dashboard?error=discord")
 
     if not data["guilds"]:
         add_log(f"Discord sign-in by {data['uname']}: no manageable servers", "info")
@@ -441,7 +453,9 @@ def console_page():
 def robots():
     # /console and /login sit outside the Cloudflare Access application, so unlike
     # /admin they are genuinely crawlable — keep them out of search results.
-    body = "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /console\nDisallow: /login\n"
+    # /auth starts an OAuth redirect, which a crawler should never trigger.
+    body = ("User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /console\n"
+            "Disallow: /login\nDisallow: /auth\n")
     return app.response_class(body, mimetype="text/plain")
 
 

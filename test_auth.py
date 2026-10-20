@@ -234,6 +234,60 @@ check("guilds the bot is absent from are dropped",
       auth.manageable([{"id": "5", "name": "n", "permissions": str(auth.MANAGE_GUILD)}],
                       ["6"]) == [])
 
+print("")
+print("Discord calls identify themselves")
+# Discord fronts its API with Cloudflare, which answers the default
+# "Python-urllib/3.x" with 403 "error code: 1010" before the API sees it.
+check("a user agent is declared", bool(auth.USER_AGENT))
+check("it is not urllib's default",
+      "urllib" not in auth.USER_AGENT.lower())
+check("it follows the DiscordBot form",
+      auth.USER_AGENT.startswith("DiscordBot ("), auth.USER_AGENT)
+
+# Patch urlopen, not _request: the header is added inside _request, so stubbing
+# that would skip the very code under test.
+import json as _json
+import urllib.request as _urlreq
+
+_seen = {}
+
+
+class _FakeResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return _json.dumps({"access_token": "t", "id": "1",
+                            "username": "u"}).encode()
+
+
+def _fake_urlopen(request, timeout=None):
+    _seen.clear()
+    _seen.update({k.lower(): v for k, v in request.header_items()})
+    return _FakeResponse()
+
+
+_real_urlopen = _urlreq.urlopen
+_urlreq.urlopen = _fake_urlopen
+try:
+    auth.exchange_code("code")
+    check("the token exchange sends it",
+          _seen.get("user-agent") == auth.USER_AGENT,
+          "-> %r" % (_seen.get("user-agent"),))
+    auth.fetch_user("tok")
+    check("the user lookup sends it",
+          _seen.get("user-agent") == auth.USER_AGENT)
+    check("and still sends the bearer token",
+          _seen.get("authorization") == "Bearer tok", "-> %r" % (_seen,))
+    auth.fetch_guilds("tok")
+    check("the guild lookup sends it",
+          _seen.get("user-agent") == auth.USER_AGENT)
+finally:
+    _urlreq.urlopen = _real_urlopen
+
 shutil.rmtree(automod.GUILD_DIR, ignore_errors=True)
 
 print("\n%d checks failed" % len(FAILURES))
