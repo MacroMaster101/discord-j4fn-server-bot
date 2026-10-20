@@ -551,8 +551,11 @@ def api_set_config():
 @app.route("/admin/api/automod", methods=["GET"])
 @require_auth
 def api_get_automod():
+    guild_id = request.args.get("guild_id") or None
     return jsonify({
-        "config": automod.get_config(),
+        "guild_id": guild_id,
+        "config": automod.get_config(guild_id),
+        "overrides": automod.guild_overrides(guild_id) if guild_id else {},
         "defaults": automod.DEFAULTS,
         "signals": [{"label": label, "weight": weight}
                     for label, weight in automod.TOGGLEABLE_SIGNALS],
@@ -560,7 +563,8 @@ def api_get_automod():
         "blocked_images": sum(len(automod.blocked_images(g.id))
                               for g in (client.guilds if client.is_ready() else [])),
         "stats": automod.tracker_stats(),
-        "recent": list(AUTOMOD_HITS)[-25:][::-1],
+        "recent": (list(AUTOMOD_HITS[int(guild_id)])[-25:][::-1]
+                   if guild_id and guild_id.isdigit() else []),
     })
 
 
@@ -569,9 +573,14 @@ def api_get_automod():
 @require_auth
 def api_set_automod():
     data = request.get_json() or {}
+    guild_id = str(data.pop("guild_id", "") or "")
     try:
-        updated = automod.save_config(data)
-        add_log("Auto-mod settings updated from dashboard.", "success")
+        if guild_id:
+            updated = automod.save_guild_config(guild_id, data)
+            add_log(f"Auto-mod settings updated for guild {guild_id}.", "success")
+        else:
+            updated = automod.save_config(data)
+            add_log("Auto-mod defaults updated from dashboard.", "success")
         return jsonify({"status": "success", "config": updated}), 200
     except Exception as e:
         add_log(f"Error saving auto-mod settings: {e}", "error")
@@ -610,8 +619,10 @@ def api_test_automod():
     data = request.get_json() or {}
     text = str(data.get("text", ""))[:4000]
     attachments = int(data.get("attachments", 0) or 0)
-    score, reasons = automod.score_content(text, attachments=attachments)
-    threshold = automod.get_config().get("scam_threshold", 5)
+    guild_id = data.get("guild_id") or None
+    cfg = automod.get_config(guild_id)
+    score, reasons = automod.score_content(text, attachments=attachments, config=cfg)
+    threshold = cfg.get("scam_threshold", 5)
     return jsonify({
         "score": score,
         "threshold": threshold,
@@ -958,7 +969,7 @@ client = discord.Client(intents=intents)
 # ----------------- AUTO-MOD STATE -----------------
 
 # Detection lives in automod.py; this module only enforces the verdicts.
-AUTOMOD_HITS = collections.deque(maxlen=200)
+AUTOMOD_HITS = collections.defaultdict(lambda: collections.deque(maxlen=100))
 
 
 # ----------------- FUN DATA -----------------
@@ -1072,7 +1083,7 @@ async def _image_fingerprints(message: discord.Message):
     own size/width/height metadata and download nothing. Every failure here is
     swallowed: a hash is a nice-to-have, never a reason to drop a message.
     """
-    cfg = automod.get_config()
+    cfg = automod.get_config(message.guild.id if message.guild else None)
     if not cfg.get("image_checks", True) or not message.attachments:
         return []
 
@@ -1264,7 +1275,7 @@ async def run_automod(message: discord.Message) -> bool:
     # the poster has nothing to vouch for them. score_content is pure, so asking
     # it here costs nothing and does not disturb the flood counters.
     ocr_text = ""
-    cfg = automod.get_config()
+    cfg = automod.get_config(message.guild.id)
     try:
         pre_score, _ = automod.score_content(
             message.content, attachments=len(message.attachments), config=cfg)
@@ -1308,7 +1319,7 @@ async def run_automod(message: discord.Message) -> bool:
     if not verdict:
         return False
 
-    AUTOMOD_HITS.append({
+    AUTOMOD_HITS[message.guild.id].append({
         "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "guild": message.guild.name,
         "channel": getattr(message.channel, "name", "?"),
@@ -1993,11 +2004,12 @@ async def cmd_automod(message, args):
     parts = args.split(None, 1)
     sub = parts[0].lower() if parts else ""
     rest = parts[1].strip() if len(parts) > 1 else ""
-    cfg = automod.get_config()
+    guild_id = message.guild.id
+    cfg = automod.get_config(guild_id)
 
     if sub in ("on", "off", "enable", "disable"):
         on = sub in ("on", "enable")
-        automod.save_config({"enabled": on})
+        automod.save_guild_config(guild_id, {"enabled": on})
         await message.channel.send(f"🛡️ Auto-mod is now **{'ON' if on else 'OFF'}**.")
         add_mod_action("automod", message.author, "settings",
                        f"enabled={on}", message.guild.name)
@@ -2135,7 +2147,7 @@ async def cmd_automod(message, args):
         else:
             off.append(target)
             state = "OFF"
-        automod.save_config({"disabled_signals": off})
+        automod.save_guild_config(guild_id, {"disabled_signals": off})
         await message.channel.send(f"🎚️ Signal `{target}` is now **{state}**.")
         add_mod_action("automod", message.author, "signal",
                        f"{target}={state}", message.guild.name)
@@ -2151,7 +2163,7 @@ async def cmd_automod(message, args):
         current = list(cfg.get(key, []))
         if value not in current:
             current.append(value)
-        automod.save_config({key: current})
+        automod.save_guild_config(guild_id, {key: current})
         await message.channel.send(f"✅ Added `{value}` to **{key}**.")
         add_mod_action("automod", message.author, key, f"+{value}", message.guild.name)
         return
@@ -2166,14 +2178,14 @@ async def cmd_automod(message, args):
             options = ", ".join(f"`{k}`" for k in automod.DEFAULTS)
             await message.channel.send(f"❓ Unknown setting. Options: {options}")
             return
-        new_cfg = automod.save_config({key: value})
+        new_cfg = automod.save_guild_config(guild_id, {key: value})
         await message.channel.send(f"✅ `{key}` is now **{new_cfg.get(key)}**.")
         add_mod_action("automod", message.author, key, str(new_cfg.get(key)),
                        message.guild.name)
         return
 
     if sub == "recent":
-        hits = list(AUTOMOD_HITS)[-10:]
+        hits = list(AUTOMOD_HITS[guild_id])[-10:]
         if not hits:
             await message.channel.send("🛡️ No auto-mod actions recorded yet.")
             return
