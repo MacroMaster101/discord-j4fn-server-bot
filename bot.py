@@ -25,8 +25,11 @@ import discord
 import jwt
 from discord.ext import tasks
 
-from flask import Flask, jsonify, request, render_template
+from flask import (Flask, jsonify, redirect, render_template, request,
+                   session, url_for)
+from urllib.parse import urlparse
 
+import auth
 import automod
 
 # ----------------- GLOBAL LOGGER & WEB PANEL STATE -----------------
@@ -59,7 +62,7 @@ def add_log(message, level="info"):
     sys.stdout.flush()
 
 
-def add_mod_action(action, moderator, target, reason, guild_name):
+def add_mod_action(action, moderator, target, reason, guild_name, guild_id=None):
     entry = {
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
         "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -68,6 +71,7 @@ def add_mod_action(action, moderator, target, reason, guild_name):
         "target": str(target),
         "reason": reason or "No reason provided",
         "guild": guild_name,
+        "guild_id": str(guild_id) if guild_id else None,
     }
     with log_lock:
         MOD_ACTIONS_BUFFER.append(entry)
@@ -140,6 +144,14 @@ def all_warnings_for_guild(guild_id):
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,     # not readable from JavaScript
+    SESSION_COOKIE_SAMESITE="Lax",    # not sent on cross-site POSTs
+    SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE", "1") != "0",
+    PERMANENT_SESSION_LIFETIME=datetime.timedelta(seconds=auth.SESSION_TTL),
+)
+
 BOT_START_TIME = None
 
 
@@ -217,22 +229,177 @@ def _token_matches():
     return secrets.compare_digest(auth_header[len("Bearer "):], str(ADMIN_PASSWORD))
 
 
+def is_owner():
+    """The bot owner: Cloudflare Access identity, or the admin token."""
+    cf_email = _cloudflare_identity()
+    if cf_email:
+        request.cf_user_email = cf_email
+        return True
+    if _token_matches():
+        request.cf_user_email = "Local Admin"
+        return True
+    return False
+
+
+def discord_session():
+    """The signed-in Discord user for this request, or None."""
+    data = session.get("discord")
+    return data if auth.session_valid(data) else None
+
+
+def bot_guild_ids():
+    return [g.id for g in client.guilds] if client.is_ready() else []
+
+
 def require_auth(f):
+    """Owner only. Everything that can affect the bot globally uses this."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 1. Cloudflare Access, proven by its signed JWT
-        cf_email = _cloudflare_identity()
-        if cf_email:
-            request.cf_user_email = cf_email
+        if is_owner():
             return f(*args, **kwargs)
-
-        # 2. Bearer token support
-        if _token_matches():
-            request.cf_user_email = "Local Admin"
-            return f(*args, **kwargs)
-
         return jsonify({"message": "Unauthorized"}), 401
     return decorated
+
+
+def _requested_guild_id():
+    """The guild a request is about, from the query string or the JSON body."""
+    gid = request.args.get("guild_id")
+    if not gid and request.is_json:
+        gid = (request.get_json(silent=True) or {}).get("guild_id")
+    return str(gid) if gid else ""
+
+
+def require_guild_access(f):
+    """Owner, or a Discord user who runs the guild the request names.
+
+    Every guild-scoped endpoint goes through here. The guild id is never taken
+    on trust: it is checked against the signed-in user's own server list and
+    against the guilds the bot is currently in.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if is_owner():
+            request.guild_scope = None          # owner sees everything
+            return f(*args, **kwargs)
+
+        user = discord_session()
+        if not user:
+            return jsonify({"message": "Unauthorized"}), 401
+
+        guild_id = _requested_guild_id()
+        if not guild_id:
+            return jsonify({"message": "guild_id is required"}), 400
+        if not auth.may_manage(user, guild_id, bot_guild_ids()):
+            return jsonify({"message": "Forbidden"}), 403
+
+        # A browser-session caller is vulnerable to cross-site POSTs in a way a
+        # bearer token is not, so state-changing requests must come from us.
+        if request.method != "GET":
+            origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
+            if origin and urlparse(origin).netloc != urlparse(request.url_root).netloc:
+                return jsonify({"message": "Bad origin"}), 403
+
+        request.guild_scope = guild_id
+        request.cf_user_email = "discord:%s" % user["uid"]
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ----------------- DISCORD SIGN-IN -----------------
+
+@app.route("/auth/discord")
+def auth_discord_start():
+    if not auth.is_configured():
+        return render_template("index.html"), 503
+    state = auth.new_state()
+    session["oauth_state"] = state
+    return redirect(auth.authorize_url(state))
+
+
+@app.route("/auth/discord/callback")
+def auth_discord_callback():
+    if not auth.is_configured():
+        return redirect("/")
+
+    # The state proves the callback belongs to the flow this browser started.
+    expected = session.pop("oauth_state", None)
+    supplied = request.args.get("state", "")
+    if not expected or not secrets.compare_digest(expected, supplied):
+        add_log("Discord sign-in rejected: state mismatch", "warning")
+        return redirect("/login?error=state")
+
+    if request.args.get("error"):
+        return redirect("/login?error=denied")
+
+    code = request.args.get("code", "")
+    if not code:
+        return redirect("/login?error=nocode")
+
+    try:
+        token = auth.exchange_code(code)
+        data = auth.build_session(token, bot_guild_ids())
+    except auth.OAuthError as e:
+        add_log(f"Discord sign-in failed: {e}", "error")
+        return redirect("/login?error=discord")
+
+    if not data["guilds"]:
+        add_log(f"Discord sign-in by {data['uname']}: no manageable servers", "info")
+        return redirect("/dashboard?error=noservers")
+
+    session.permanent = True
+    session["discord"] = data
+    add_log(f"Discord sign-in: {data['uname']} "
+            f"({len(data['guilds'])} server(s))", "success")
+    return redirect("/dashboard")
+
+
+@app.route("/auth/logout", methods=["POST", "GET"])
+def auth_logout():
+    session.pop("discord", None)
+    session.pop("oauth_state", None)
+    return redirect("/")
+
+
+@app.route("/dashboard")
+@app.route("/dashboard/")
+def dashboard_page():
+    """The server admin's console. Its data comes from guild-scoped endpoints."""
+    return render_template("dashboard.html",
+                           oauth_enabled=auth.is_configured())
+
+
+@app.route("/api/me", methods=["GET"])
+@app.route("/admin/api/me", methods=["GET"])
+def api_me():
+    """Who is signed in, and which servers they may manage."""
+    if is_owner():
+        return jsonify({
+            "authenticated": True,
+            "owner": True,
+            "username": getattr(request, "cf_user_email", "Owner"),
+            "guilds": [{"id": str(g.id), "name": g.name,
+                        "icon": g.icon.url if g.icon else None}
+                       for g in (client.guilds if client.is_ready() else [])],
+        })
+
+    user = discord_session()
+    if not user:
+        return jsonify({"authenticated": False,
+                        "oauth_enabled": auth.is_configured()}), 200
+
+    present = {str(g) for g in bot_guild_ids()}
+    guilds = [{"id": gid,
+               "name": user.get("names", {}).get(gid, gid),
+               "icon": user.get("icons", {}).get(gid)}
+              for gid in user["guilds"] if gid in present]
+    return jsonify({
+        "authenticated": True,
+        "owner": False,
+        "username": user["uname"],
+        "user_id": user["uid"],
+        "avatar": user.get("avatar"),
+        "guilds": guilds,
+    })
 
 
 @app.route("/")
@@ -549,7 +716,7 @@ def api_set_config():
 
 @app.route("/api/automod", methods=["GET"])
 @app.route("/admin/api/automod", methods=["GET"])
-@require_auth
+@require_guild_access
 def api_get_automod():
     guild_id = request.args.get("guild_id") or None
     return jsonify({
@@ -570,7 +737,7 @@ def api_get_automod():
 
 @app.route("/api/automod", methods=["POST"])
 @app.route("/admin/api/automod", methods=["POST"])
-@require_auth
+@require_guild_access
 def api_set_automod():
     data = request.get_json() or {}
     guild_id = str(data.pop("guild_id", "") or "")
@@ -589,7 +756,7 @@ def api_set_automod():
 
 @app.route("/api/automod/blocked", methods=["GET"])
 @app.route("/admin/api/automod/blocked", methods=["GET"])
-@require_auth
+@require_guild_access
 def api_blocked_images():
     guild_id = request.args.get("guild_id", "")
     if not guild_id:
@@ -599,7 +766,7 @@ def api_blocked_images():
 
 @app.route("/api/automod/blocked/remove", methods=["POST"])
 @app.route("/admin/api/automod/blocked/remove", methods=["POST"])
-@require_auth
+@require_guild_access
 def api_remove_blocked_image():
     data = request.get_json() or {}
     guild_id = str(data.get("guild_id", ""))
@@ -612,9 +779,22 @@ def api_remove_blocked_image():
     return jsonify({"message": "Not found"}), 404
 
 
+@app.route("/api/automod/reset", methods=["POST"])
+@app.route("/admin/api/automod/reset", methods=["POST"])
+@require_guild_access
+def api_reset_automod():
+    """Drop a guild's customisation so it follows the bot defaults again."""
+    guild_id = _requested_guild_id()
+    if not guild_id:
+        return jsonify({"message": "guild_id is required"}), 400
+    automod.clear_guild_overrides(guild_id)
+    add_log(f"Auto-mod settings reset to defaults for guild {guild_id}.", "success")
+    return jsonify({"status": "success", "config": automod.get_config(guild_id)}), 200
+
+
 @app.route("/api/automod/test", methods=["POST"])
 @app.route("/admin/api/automod/test", methods=["POST"])
-@require_auth
+@require_guild_access
 def api_test_automod():
     data = request.get_json() or {}
     text = str(data.get("text", ""))[:4000]
@@ -772,15 +952,19 @@ def api_logs():
 
 @app.route("/api/mod/actions", methods=["GET"])
 @app.route("/admin/api/mod/actions", methods=["GET"])
-@require_auth
+@require_guild_access
 def api_mod_actions():
+    scope = getattr(request, "guild_scope", None)
     with log_lock:
-        return jsonify(list(MOD_ACTIONS_BUFFER))
+        entries = list(MOD_ACTIONS_BUFFER)
+    if scope:
+        entries = [e for e in entries if str(e.get("guild_id") or "") == str(scope)]
+    return jsonify(entries)
 
 
 @app.route("/api/mod/warnings", methods=["GET"])
 @app.route("/admin/api/mod/warnings", methods=["GET"])
-@require_auth
+@require_guild_access
 def api_mod_warnings():
     guild_id = request.args.get("guild_id")
     if not guild_id:
@@ -809,7 +993,7 @@ def api_mod_warnings():
 
 @app.route("/api/mod/action", methods=["POST"])
 @app.route("/admin/api/mod/action", methods=["POST"])
-@require_auth
+@require_guild_access
 def api_mod_action():
     data = request.get_json() or {}
     action = data.get("action")
@@ -955,6 +1139,23 @@ if not ADMIN_PASSWORD:
     except Exception:
         pass
     print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
+
+# Signs the session cookie. Generated once and kept in .env: a key that changed
+# on every boot would sign everyone out on each deploy.
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "").strip()
+if not FLASK_SECRET_KEY:
+    FLASK_SECRET_KEY = secrets.token_urlsafe(32)
+    try:
+        update_env_variable("FLASK_SECRET_KEY", FLASK_SECRET_KEY)
+    except Exception:
+        pass
+app.secret_key = FLASK_SECRET_KEY
+
+if auth.is_configured():
+    print("🔓 Discord sign-in enabled for server admins.")
+else:
+    print("ℹ️  Discord sign-in disabled "
+          "(set DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET / OAUTH_REDIRECT_URI).")
 
 ACCESS_VERIFIER = _access_verifier()
 
@@ -1374,7 +1575,7 @@ async def run_automod(message: discord.Message) -> bool:
         pass
 
     add_mod_action(f"auto-{verdict.action}", "AutoMod", member,
-                   verdict.reason, message.guild.name)
+                   verdict.reason, message.guild.name, message.guild.id)
 
     detail = (f"{member.mention} (`{member}`) — **{applied}**\n"
               f"Reason: {verdict.reason}\n"
@@ -1783,7 +1984,7 @@ async def cmd_kick(message, args):
     try:
         await member.kick(reason=f"[{message.author}] {reason or 'No reason'}")
         await message.channel.send(f"👢 {member} has been kicked. Reason: {reason or 'No reason'}")
-        add_mod_action("kick", message.author, member, reason, message.guild.name)
+        add_mod_action("kick", message.author, member, reason, message.guild.name, message.guild.id)
         await send_mod_log(message.guild, "👢 Member Kicked",
                            f"**Member:** {member.mention} (`{member.id}`)\n"
                            f"**Moderator:** {message.author.mention}\n"
@@ -1807,7 +2008,7 @@ async def cmd_ban(message, args):
                 await message.guild.ban(discord.Object(id=user_id),
                                         reason=f"[{message.author}] {reason or 'No reason'}")
                 await message.channel.send(f"🔨 User `{user_id}` banned.")
-                add_mod_action("ban", message.author, user_id, reason, message.guild.name)
+                add_mod_action("ban", message.author, user_id, reason, message.guild.name, message.guild.id)
                 return
             except discord.HTTPException as e:
                 await message.channel.send(f"🚫 Failed: {e}")
@@ -1820,7 +2021,7 @@ async def cmd_ban(message, args):
     try:
         await member.ban(reason=f"[{message.author}] {reason or 'No reason'}", delete_message_days=0)
         await message.channel.send(f"🔨 {member} has been banned. Reason: {reason or 'No reason'}")
-        add_mod_action("ban", message.author, member, reason, message.guild.name)
+        add_mod_action("ban", message.author, member, reason, message.guild.name, message.guild.id)
         await send_mod_log(message.guild, "🔨 Member Banned",
                            f"**Member:** {member.mention} (`{member.id}`)\n"
                            f"**Moderator:** {message.author.mention}\n"
@@ -1843,7 +2044,7 @@ async def cmd_unban(message, args):
         await message.guild.unban(discord.Object(id=user_id),
                                   reason=f"[{message.author}] {reason or 'No reason'}")
         await message.channel.send(f"✅ User `{user_id}` unbanned.")
-        add_mod_action("unban", message.author, user_id, reason, message.guild.name)
+        add_mod_action("unban", message.author, user_id, reason, message.guild.name, message.guild.id)
         await send_mod_log(message.guild, "✅ Member Unbanned",
                            f"**User ID:** `{user_id}`\n**Moderator:** {message.author.mention}\n"
                            f"**Reason:** {reason or 'No reason'}", color=0x57F287)
@@ -1872,7 +2073,7 @@ async def cmd_timeout(message, args):
     try:
         await member.timeout(until, reason=f"[{message.author}] {reason or 'No reason'}")
         await message.channel.send(f"🔇 {member.mention} muted for **{minutes}m**. Reason: {reason or 'No reason'}")
-        add_mod_action("timeout", message.author, member, f"{reason} ({minutes}m)", message.guild.name)
+        add_mod_action("timeout", message.author, member, f"{reason} ({minutes}m)", message.guild.name, message.guild.id)
         await send_mod_log(message.guild, "🔇 Member Timed Out",
                            f"**Member:** {member.mention}\n**Duration:** {minutes} minutes\n"
                            f"**Moderator:** {message.author.mention}\n**Reason:** {reason or 'No reason'}",
@@ -1892,7 +2093,7 @@ async def cmd_untimeout(message, args):
     try:
         await member.timeout(None, reason=f"[{message.author}] {reason or 'unmute'}")
         await message.channel.send(f"🔊 {member.mention} unmuted.")
-        add_mod_action("untimeout", message.author, member, reason, message.guild.name)
+        add_mod_action("untimeout", message.author, member, reason, message.guild.name, message.guild.id)
         await send_mod_log(message.guild, "🔊 Timeout Removed",
                            f"**Member:** {member.mention}\n**Moderator:** {message.author.mention}",
                            color=0x57F287)
@@ -1918,7 +2119,7 @@ async def cmd_warn(message, args):
     embed.add_field(name="Reason", value=reason, inline=False)
     embed.set_footer(text=f"By {message.author}")
     await message.channel.send(embed=embed)
-    add_mod_action("warn", message.author, member, f"{reason} (total: {count})", message.guild.name)
+    add_mod_action("warn", message.author, member, f"{reason} (total: {count})", message.guild.name, message.guild.id)
     await send_mod_log(message.guild, "⚠️ Warning Issued",
                        f"**Member:** {member.mention}\n**Moderator:** {message.author.mention}\n"
                        f"**Reason:** {reason}\n**Total Warnings:** {count}", color=0xFEE75C)
@@ -1957,7 +2158,7 @@ async def cmd_clearwarns(message, args):
         return
     count = clear_warnings(message.guild.id, member.id)
     await message.channel.send(f"🧹 Cleared **{count}** warning(s) for {member.mention}.")
-    add_mod_action("clear_warnings", message.author, member, f"cleared {count}", message.guild.name)
+    add_mod_action("clear_warnings", message.author, member, f"cleared {count}", message.guild.name, message.guild.id)
 
 
 async def cmd_purge(message, args):
@@ -1972,7 +2173,7 @@ async def cmd_purge(message, args):
         deleted = await message.channel.purge(limit=count + 1)
         msg = await message.channel.send(f"🧹 Deleted **{len(deleted)-1}** messages.")
         add_mod_action("purge", message.author, f"#{message.channel.name}",
-                       f"{len(deleted)-1} messages", message.guild.name)
+                       f"{len(deleted)-1} messages", message.guild.name, message.guild.id)
         await asyncio.sleep(3)
         try:
             await msg.delete()
@@ -2012,7 +2213,7 @@ async def cmd_automod(message, args):
         automod.save_guild_config(guild_id, {"enabled": on})
         await message.channel.send(f"🛡️ Auto-mod is now **{'ON' if on else 'OFF'}**.")
         add_mod_action("automod", message.author, "settings",
-                       f"enabled={on}", message.guild.name)
+                       f"enabled={on}", message.guild.name, message.guild.id)
         return
 
     if sub == "test":
@@ -2081,7 +2282,7 @@ async def cmd_automod(message, args):
             f"🛡️ Blocked **{len(added)}** image(s){note}. Anyone posting them again "
             f"is caught on their first message.{extra}\nIDs: {ids}")
         add_mod_action("automod", message.author, "blocked image",
-                       rest or f"{len(added)} image(s)", message.guild.name)
+                       rest or f"{len(added)} image(s)", message.guild.name, message.guild.id)
         await send_mod_log(
             message.guild, "🛡️ Scam Image Blocked",
             f"{message.author.mention} blocked **{len(added)}** image(s){note}.\n"
@@ -2095,7 +2296,7 @@ async def cmd_automod(message, args):
         if automod.remove_blocked_image(message.guild.id, rest.strip()):
             await message.channel.send(f"✅ Unblocked image `{rest.strip()}`.")
             add_mod_action("automod", message.author, "unblocked image",
-                           rest.strip(), message.guild.name)
+                           rest.strip(), message.guild.name, message.guild.id)
         else:
             await message.channel.send(f"❓ No blocked image with id `{rest.strip()}`.")
         return
@@ -2150,7 +2351,7 @@ async def cmd_automod(message, args):
         automod.save_guild_config(guild_id, {"disabled_signals": off})
         await message.channel.send(f"🎚️ Signal `{target}` is now **{state}**.")
         add_mod_action("automod", message.author, "signal",
-                       f"{target}={state}", message.guild.name)
+                       f"{target}={state}", message.guild.name, message.guild.id)
         return
 
     if sub in ("block", "allow"):
@@ -2165,7 +2366,7 @@ async def cmd_automod(message, args):
             current.append(value)
         automod.save_guild_config(guild_id, {key: current})
         await message.channel.send(f"✅ Added `{value}` to **{key}**.")
-        add_mod_action("automod", message.author, key, f"+{value}", message.guild.name)
+        add_mod_action("automod", message.author, key, f"+{value}", message.guild.name, message.guild.id)
         return
 
     if sub == "set":
@@ -2181,7 +2382,7 @@ async def cmd_automod(message, args):
         new_cfg = automod.save_guild_config(guild_id, {key: value})
         await message.channel.send(f"✅ `{key}` is now **{new_cfg.get(key)}**.")
         add_mod_action("automod", message.author, key, str(new_cfg.get(key)),
-                       message.guild.name)
+                       message.guild.name, message.guild.id)
         return
 
     if sub == "recent":
@@ -2274,7 +2475,7 @@ async def cmd_slowmode(message, args):
         else:
             await message.channel.send(f"⏱️ Slowmode set to **{seconds}s**.")
         add_mod_action("slowmode", message.author, f"#{message.channel.name}",
-                       f"{seconds}s", message.guild.name)
+                       f"{seconds}s", message.guild.name, message.guild.id)
     except discord.Forbidden:
         await message.channel.send("🚫 I don't have permission.")
 
@@ -2289,7 +2490,7 @@ async def cmd_lock(message, lock: bool):
         await message.channel.set_permissions(message.guild.default_role, overwrite=overwrite)
         await message.channel.send(f"🔒 Channel **locked**." if lock else f"🔓 Channel **unlocked**.")
         add_mod_action("lock" if lock else "unlock", message.author,
-                       f"#{message.channel.name}", "", message.guild.name)
+                       f"#{message.channel.name}", "", message.guild.name, message.guild.id)
     except discord.Forbidden:
         await message.channel.send("🚫 I don't have permission.")
 
@@ -2306,7 +2507,7 @@ async def cmd_nick(message, args):
     try:
         await member.edit(nick=new_nick, reason=f"By {message.author}")
         await message.channel.send(f"✏️ Nickname for {member.mention} set to **{new_nick or 'reset'}**.")
-        add_mod_action("nick", message.author, member, new_nick or "(reset)", message.guild.name)
+        add_mod_action("nick", message.author, member, new_nick or "(reset)", message.guild.name, message.guild.id)
     except discord.Forbidden:
         await message.channel.send("🚫 I don't have permission.")
 
@@ -2329,11 +2530,11 @@ async def cmd_role(message, args, add: bool):
         if add:
             await member.add_roles(role, reason=f"By {message.author}")
             await message.channel.send(f"✅ Added **{role.name}** to {member.mention}.")
-            add_mod_action("addrole", message.author, member, role.name, message.guild.name)
+            add_mod_action("addrole", message.author, member, role.name, message.guild.name, message.guild.id)
         else:
             await member.remove_roles(role, reason=f"By {message.author}")
             await message.channel.send(f"✅ Removed **{role.name}** from {member.mention}.")
-            add_mod_action("removerole", message.author, member, role.name, message.guild.name)
+            add_mod_action("removerole", message.author, member, role.name, message.guild.name, message.guild.id)
     except discord.Forbidden:
         await message.channel.send("🚫 I don't have permission to manage that role.")
 

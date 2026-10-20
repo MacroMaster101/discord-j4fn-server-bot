@@ -31,10 +31,17 @@ jobs:
         run: pip install --no-cache-dir -r requirements.txt
 
       - name: Byte-compile
-        run: python -m compileall -q bot.py automod.py test_automod.py
+        run: python -m compileall -q bot.py automod.py auth.py test_automod.py test_auth.py
 
       - name: Auto-mod detection checks
         run: python test_automod.py
+
+      - name: Authorization boundary checks
+        env:
+          DISCORD_TOKEN: ci-placeholder
+          ADMIN_PASSWORD: ci-placeholder
+          COOKIE_SECURE: '0'
+        run: python test_auth.py
 
       - name: Bot imports cleanly
         env:
