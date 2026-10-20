@@ -441,7 +441,9 @@ def console_page():
 def robots():
     # /console and /login sit outside the Cloudflare Access application, so unlike
     # /admin they are genuinely crawlable — keep them out of search results.
-    body = "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /console\nDisallow: /login\n"
+    # /auth starts an OAuth redirect, which a crawler should never trigger.
+    body = ("User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /console\n"
+            "Disallow: /login\nDisallow: /auth\n")
     return app.response_class(body, mimetype="text/plain")
 
 
