@@ -83,7 +83,9 @@ def sign_in(client, guilds):
         }
 
 
-OWNER = {"Authorization": "Bearer test-admin-token"}
+# Taken from the bot rather than hard-coded: CI supplies its own ADMIN_PASSWORD,
+# so a literal here only matches when the variable happens to be unset.
+OWNER = {"Authorization": "Bearer %s" % bot.ADMIN_PASSWORD}
 
 print("\nAnonymous access")
 with app.test_client() as c:
