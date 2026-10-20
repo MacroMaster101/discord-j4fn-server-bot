@@ -288,6 +288,71 @@ body {
     gap: 8px;
 }
 
+/* Connected Servers */
+.server-panel {
+    margin-bottom: 24px;
+}
+
+.server-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.server-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    min-width: 0;
+}
+
+.server-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    object-fit: cover;
+}
+
+.server-meta {
+    min-width: 0;
+}
+
+.server-name {
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.server-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.server-sub code {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+}
+
+.server-empty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
 /* Form Controls */
 .form-grid {
     display: grid;
@@ -331,6 +396,147 @@ body {
     box-shadow: 0 0 12px var(--color-red-glow);
 }
 
+/* ---- Auto-Mod panel ---- */
+
+.form-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.automod-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.automod-switch input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-emerald);
+    cursor: pointer;
+}
+
+.automod-toggles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.automod-toggles label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.automod-toggles input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--color-purple);
+    cursor: pointer;
+}
+
+.automod-signals {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.automod-signals-label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.automod-signals .automod-toggles {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.automod-toggles .signal-weight {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+.automod-hit {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--color-red);
+    border-radius: var(--radius-md);
+}
+
+.automod-hit.is-delete { border-left-color: #eab308; }
+.automod-hit.is-ban { border-left-color: #991b1b; }
+
+.automod-hit .hit-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.automod-hit .hit-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.btn-unblock {
+    padding: 2px 9px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-unblock:hover {
+    color: #fff;
+    border-color: var(--color-red);
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.automod-verdict {
+    padding: 9px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-input);
+}
+
+.automod-verdict.is-blocked { border-color: var(--color-red); }
+.automod-verdict.is-clean { border-color: var(--color-emerald); }
+
+@media (max-width: 900px) {
+    .automod-toggles {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Responsive Layout */
 @media (max-width: 900px) {
     .grid-2-col {
@@ -343,3 +549,87 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* ---- Server-admin dashboard ---- */
+
+.signin-gate {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--bg-primary);
+    z-index: 50;
+}
+
+.signin-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 36px 28px;
+    text-align: center;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+}
+
+.signin-logo {
+    width: 64px;
+    height: 64px;
+    max-width: 64px;
+    object-fit: contain;
+    border-radius: 16px;
+    margin-bottom: 18px;
+}
+.signin-card h1 { font-size: 1.3rem; margin-bottom: 10px; color: var(--text-primary); }
+.signin-card p { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 22px; }
+
+.signin-error {
+    display: none;
+    margin-top: 16px !important;
+    color: var(--color-red) !important;
+    font-size: 0.82rem !important;
+}
+
+.signin-back {
+    display: block;
+    margin-top: 20px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.signin-back:hover { color: var(--text-secondary); }
+
+.guild-picker { width: auto; min-width: 180px; padding: 8px 12px; font-size: 0.85rem; }
+
+.whoami { font-size: 0.8rem; color: var(--text-secondary); }
+
+.dash-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.dash-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.override-count { font-size: 0.75rem; color: var(--text-secondary); }
+
+@media (max-width: 900px) {
+    .guild-picker { min-width: 0; flex: 1; }
+}
+
+/* logo.png is 1024px square; never let it render at natural size. */
+.admin-nav img, .signin-card img { max-width: 64px; height: auto; }
+
+/* A display rule on a class beats the hidden attribute, which would leave the
+   dashboard chrome visible behind the sign-in gate. */
+[hidden] { display: none !important; }

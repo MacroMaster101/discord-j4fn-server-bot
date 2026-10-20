@@ -30,8 +30,10 @@
 
         <ul class="nav-links">
             <li><a href="#stats">Live Stats</a></li>
+            <li><a href="#servers">Communities</a></li>
             <li><a href="#features">Features</a></li>
             <li><a href="#commands">Commands</a></li>
+            <li><a href="/dashboard">My Servers</a></li>
             <li><a href="/login">Admin Console</a></li>
         </ul>
 
@@ -39,8 +41,8 @@
             <a href="https://discord.com/oauth2/authorize?client_id=951917671027458108&permissions=8&scope=bot" target="_blank" class="btn btn-blurple">
                 <i class="fa-brands fa-discord"></i> Add to Discord
             </a>
-            <a href="/login" class="btn btn-admin">
-                <i class="fa-solid fa-key"></i> Admin Console
+            <a href="/dashboard" class="btn btn-admin">
+                <i class="fa-solid fa-sliders"></i> My Servers
             </a>
         </div>
     </nav>
@@ -109,6 +111,25 @@
                 </div>
                 <div class="stat-icon">
                     <i class="fa-solid fa-bolt"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- JOINED SERVERS SECTION -->
+    <section id="servers" class="section-container">
+        <div class="servers-panel">
+            <div class="servers-head">
+                <div>
+                    <span class="kicker">Communities</span>
+                    <h2>Joined servers</h2>
+                </div>
+                <span id="serversCount" class="servers-count">0 servers</span>
+            </div>
+            <div id="publicServers" class="server-grid">
+                <div class="server-empty">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <strong>Loading servers...</strong>
                 </div>
             </div>
         </div>
@@ -222,6 +243,14 @@
                     <span class="cmd-badge">Moderation</span>
                 </div>
                 <div class="cmd-desc">Lock or unlock send message permissions for @everyone.</div>
+            </div>
+
+            <div class="cmd-box" data-cat="mod">
+                <div class="cmd-head">
+                    <span class="cmd-syntax">$automod</span>
+                    <span class="cmd-badge">Moderation</span>
+                </div>
+                <div class="cmd-desc">View and tune the anti-spam &amp; scam filter (Manage Server).</div>
             </div>
 
             <div class="cmd-box" data-cat="info">

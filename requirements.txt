@@ -1,3 +1,7 @@
 discord.py
 python-dotenv
 flask
+PyJWT[crypto]
+# Optional: enables perceptual image hashing so a re-encoded screenshot is
+# still recognised. Without it the bot falls back to attachment metadata.
+Pillow
