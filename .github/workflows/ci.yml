@@ -28,7 +28,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install --no-cache-dir -r requirements.txt
+        # No --no-cache-dir here: setup-python's `cache: pip` saves
+        # ~/.cache/pip afterwards and fails the job if nothing wrote it.
+        run: pip install -r requirements.txt
 
       - name: Byte-compile
         run: python -m compileall -q bot.py automod.py auth.py test_automod.py test_auth.py
