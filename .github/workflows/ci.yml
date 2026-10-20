@@ -1,0 +1,60 @@
+name: CI
+
+# Runs on every pull request into dev or main, and on every push to dev.
+# main is deployed on push, so it is only ever reached through a reviewed PR.
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Byte-compile
+        run: python -m compileall -q bot.py automod.py test_automod.py
+
+      - name: Auto-mod detection checks
+        run: python test_automod.py
+
+      - name: Bot imports cleanly
+        env:
+          DISCORD_TOKEN: ci-placeholder
+          ADMIN_PASSWORD: ci-placeholder
+        run: python -c "import bot; print('bot imports OK')"
+
+      - name: No stray debug statements
+        run: |
+          if grep -rnE '^\s*(breakpoint\(\)|import pdb|pdb\.set_trace)' \
+               bot.py automod.py; then
+            echo "::error::debugger left in the source"
+            exit 1
+          fi
+
+      - name: Working tree is clean after the run
+        run: |
+          # The suite writes to data/ and must clean up after itself.
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::tests left files behind:"
+            git status --porcelain
+            exit 1
+          fi
