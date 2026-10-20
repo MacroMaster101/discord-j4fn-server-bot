@@ -93,7 +93,11 @@ discord-j4fn-server-bot/
 | `DISCORD_TOKEN` | **Yes** | — | Your Discord Bot Token from Developer Portal |
 | `ADMIN_PASSWORD` | Optional | *Auto-generated* | Password for accessing `/admin` Operations Console |
 | `PORT` | Optional | `8080` | Port for Flask REST API & Web Dashboard |
+| `WEB_HOST` | Optional | `0.0.0.0` | Address the web panel listens on. Set `127.0.0.1` for local runs |
 | `TUNNEL_TOKEN` | **Yes** (Prod) | — | Cloudflare Zero Trust Tunnel connector token |
+| `CF_ACCESS_TEAM_DOMAIN` | **Yes** (Prod) | — | Zero Trust team domain, e.g. `damp-leaf-bc5b.cloudflareaccess.com` |
+| `CF_ACCESS_AUD` | **Yes** (Prod) | — | AUD tag of the Access application. Without both, Cloudflare sign-in is disabled and only the admin password works |
+| `DASHBOARD_BIND_ADDRESS` | Optional | `0.0.0.0` | Host address Docker publishes port 8080 on. `127.0.0.1` keeps the origin reachable only through the tunnel |
 | `PREFIX` | Optional | `$` | Default command prefix |
 | `WELCOME_CHANNEL_ID` | Optional | `""` | Channel ID for welcome greeting embeds |
 | `MOD_LOG_CHANNEL_ID` | Optional | `""` | Channel ID for moderation audit logs |
@@ -104,19 +108,34 @@ discord-j4fn-server-bot/
 ## 🚀 Quick Start & Production Deployment
 
 ### Local Development
+
+Use a **separate test bot** for local runs. If your PC and the server both log in
+with the production token, every command is answered twice and moderation actions
+run twice.
+
+1. In the [Discord Developer Portal](https://discord.com/developers/applications), create
+   a new application (e.g. `J4FN Dev`), open **Bot**, and copy its token.
+2. On the same page, turn on all three **Privileged Gateway Intents**: Presence,
+   Server Members, and Message Content. The bot won't start without them.
+3. Invite the test bot to a test server: **OAuth2 ➔ URL Generator**, scope `bot`,
+   permission `Administrator`.
+4. Set up and start:
+
 ```bash
-# Clone repository
 git clone https://github.com/MacroMaster101/discord-j4fn-server-bot.git
 cd discord-j4fn-server-bot
 
-# Setup environment
 cp .env.example .env
-nano .env
+# In .env: set DISCORD_TOKEN to the test bot's token, set WEB_HOST=127.0.0.1,
+# and leave CF_ACCESS_* / TUNNEL_TOKEN empty (Cloudflare isn't used locally)
 
-# Install dependencies and start
 pip install -r requirements.txt
 python bot.py
 ```
+
+Open http://localhost:8080. To use the admin console, go to `/login` and use the
+admin password, which is printed on first start and saved to `.env` as
+`ADMIN_PASSWORD`. Cloudflare Access sign-in only works on the deployed site.
 
 ### Docker & Cloudflare Tunnel (AWS EC2 Deployment)
 ```bash
@@ -145,6 +164,10 @@ To protect `https://bot.j4fn.site/admin` with Cloudflare Access:
    - **Action**: `Allow`
    - **Include**: Add your email (`justforfun.ggez@gmail.com`).
 6. Click **Save application**.
+7. Copy the application's **AUD tag** from its Overview page. Put it and your team
+   domain in the server's `.env` as `CF_ACCESS_AUD` and `CF_ACCESS_TEAM_DOMAIN`, then
+   restart. The bot checks Cloudflare's signed login token against these, so Access
+   sign-in stays disabled until both are set.
 
 ---
 

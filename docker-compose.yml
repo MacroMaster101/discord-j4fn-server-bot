@@ -4,7 +4,9 @@ services:
     container_name: discord-j4fn-bot
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # cloudflared reaches the bot as bot:8080 over the compose network; set
+      # DASHBOARD_BIND_ADDRESS=127.0.0.1 to keep the origin off the public internet.
+      - "${DASHBOARD_BIND_ADDRESS:-0.0.0.0}:8080:8080"
     volumes:
       - ./data:/app/data
       - ./.env:/app/.env

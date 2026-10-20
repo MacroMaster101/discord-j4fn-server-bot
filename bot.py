@@ -9,9 +9,18 @@ import datetime
 import collections
 from functools import wraps
 
+# Startup messages use emoji; a Windows console or log pipe defaults to cp1252 and
+# would crash on them.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 from dotenv import load_dotenv
 
 import discord
+import jwt
 from discord.ext import tasks
 
 from flask import Flask, jsonify, request, render_template
@@ -153,22 +162,70 @@ def asset(filename):
     return f"/static/{filename}?v={stamp}"
 
 
+def _access_verifier():
+    """Build the Cloudflare Access JWT verifier, or None when it isn't configured.
+
+    The Cf-Access-Authenticated-User-Email header proves nothing on its own: any
+    client can send it, and Cloudflare only sets it on paths inside the Access app
+    (bare /api/... and a directly reached origin get whatever the caller sent). The
+    signed Cf-Access-Jwt-Assertion is the only trustworthy identity, so without the
+    team domain and AUD tag needed to check it, Access sign-in is refused outright.
+    """
+    team = os.getenv("CF_ACCESS_TEAM_DOMAIN", "").strip().removeprefix("https://").rstrip("/")
+    aud = os.getenv("CF_ACCESS_AUD", "").strip()
+    if not team or not aud:
+        print("⚠️ CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD not set: Cloudflare Access sign-in "
+              "is disabled. Use the admin token at /login, or set both to enable it.")
+        return None
+    issuer = f"https://{team}"
+    # PyJWKClient caches the key set and refetches when it meets an unknown kid,
+    # which covers Cloudflare's periodic key rotation.
+    jwks = jwt.PyJWKClient(f"{issuer}/cdn-cgi/access/certs", lifespan=3600)
+
+    def verify(token):
+        try:
+            key = jwks.get_signing_key_from_jwt(token).key
+            claims = jwt.decode(
+                token, key, algorithms=["RS256"], audience=aud, issuer=issuer,
+                options={"require": ["exp", "iat", "aud", "iss"]},
+            )
+        except Exception as e:
+            print(f"Access JWT rejected: {e}")
+            return None
+        email = claims.get("email")
+        return email if isinstance(email, str) and email else None
+
+    return verify
+
+
+def _cloudflare_identity():
+    """Return the verified Cloudflare Access email for this request, or None."""
+    if not ACCESS_VERIFIER:
+        return None
+    assertion = request.headers.get("Cf-Access-Jwt-Assertion", "").strip()
+    return ACCESS_VERIFIER(assertion) if assertion else None
+
+
+def _token_matches():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return False
+    return secrets.compare_digest(auth_header[len("Bearer "):], str(ADMIN_PASSWORD))
+
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 1. Cloudflare Access header support
-        cf_email = request.headers.get("Cf-Access-Authenticated-User-Email")
+        # 1. Cloudflare Access, proven by its signed JWT
+        cf_email = _cloudflare_identity()
         if cf_email:
             request.cf_user_email = cf_email
             return f(*args, **kwargs)
 
         # 2. Bearer token support
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            if token == ADMIN_PASSWORD:
-                request.cf_user_email = "Local Admin"
-                return f(*args, **kwargs)
+        if _token_matches():
+            request.cf_user_email = "Local Admin"
+            return f(*args, **kwargs)
 
         return jsonify({"message": "Unauthorized"}), 401
     return decorated
@@ -298,17 +355,34 @@ def api_login():
 @app.route("/api/auth-check", methods=["GET"])
 @app.route("/admin/api/auth-check", methods=["GET"])
 def api_auth_check():
-    cf_email = request.headers.get("Cf-Access-Authenticated-User-Email")
+    cf_email = _cloudflare_identity()
     if cf_email:
         return jsonify({"authenticated": True, "type": "cloudflare", "email": cf_email}), 200
 
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        if token == ADMIN_PASSWORD:
-            return jsonify({"authenticated": True, "type": "token", "email": "Local Admin"}), 200
+    if _token_matches():
+        return jsonify({"authenticated": True, "type": "token", "email": "Local Admin"}), 200
 
     return jsonify({"authenticated": False}), 200
+
+
+def _public_server_list():
+    """Servers for the landing page's "Joined servers" section, largest first.
+
+    Public, so it carries only what Discord itself shows on an invite card: no guild
+    IDs and no channels.
+    """
+    if not client.is_ready():
+        return []
+    servers = []
+    for g in client.guilds:
+        servers.append({
+            "name": g.name,
+            "icon": g.icon.with_size(128).url if g.icon else None,
+            "member_count": g.member_count or 0,
+            "online": sum(1 for m in g.members if m.status != discord.Status.offline and not m.bot),
+        })
+    servers.sort(key=lambda s: s["member_count"], reverse=True)
+    return servers
 
 
 @app.route("/api/public/stats", methods=["GET"])
@@ -396,6 +470,7 @@ def api_stats():
         "uptime_seconds": uptime_seconds,
         "latency": latency_ms,
         "server_count": server_count,
+        "servers": _public_server_list(),
         "total_members": total_members,
         "online_members": online_members,
         "text_channels": text_channels,
@@ -743,7 +818,9 @@ def api_restart():
 
 def run_web():
     port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    # 0.0.0.0 is needed inside Docker so cloudflared can reach the container; for a
+    # local run set WEB_HOST=127.0.0.1 so the console isn't open to the whole network.
+    app.run(host=os.getenv("WEB_HOST", "0.0.0.0"), port=port)
 
 
 def keep_alive():
@@ -790,6 +867,8 @@ if not ADMIN_PASSWORD:
     except Exception:
         pass
     print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
+
+ACCESS_VERIFIER = _access_verifier()
 
 
 intents = discord.Intents.default()

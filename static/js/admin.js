@@ -94,6 +94,8 @@ async function loadConfig() {
             mSelect.innerHTML = '<option value="">None (Disabled)</option>';
             gSelect.innerHTML = '<option value="" disabled selected>Select a server...</option>';
 
+            renderServerList(servers);
+
             servers.forEach(s => {
                 const optG = document.createElement('option');
                 optG.value = s.id;
@@ -127,6 +129,57 @@ async function loadConfig() {
     } catch (e) {
         console.error('Config load error:', e);
     }
+}
+
+// Server names come from Discord and anyone can invite the bot, so every value is set
+// with textContent — never innerHTML.
+function renderServerList(servers) {
+    const list = document.getElementById('serverList');
+    const count = document.getElementById('serverListCount');
+    list.replaceChildren();
+    count.textContent = `${servers.length} server${servers.length === 1 ? '' : 's'}`;
+
+    if (!servers.length) {
+        const empty = document.createElement('p');
+        empty.className = 'server-empty';
+        empty.textContent = 'The bot is not connected to Discord, or is not in any servers yet.';
+        list.appendChild(empty);
+        return;
+    }
+
+    [...servers].sort((a, b) => (b.member_count || 0) - (a.member_count || 0)).forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'server-item';
+
+        let icon;
+        if (typeof s.icon === 'string' && s.icon.startsWith('https://cdn.discordapp.com/')) {
+            icon = document.createElement('img');
+            icon.src = s.icon;
+            icon.alt = '';
+        } else {
+            icon = document.createElement('div');
+            icon.textContent = (s.name || '?').trim().charAt(0).toUpperCase() || '?';
+        }
+        icon.className = 'server-icon';
+
+        const meta = document.createElement('div');
+        meta.className = 'server-meta';
+
+        const name = document.createElement('div');
+        name.className = 'server-name';
+        name.textContent = s.name;
+        name.title = s.name;
+
+        const sub = document.createElement('div');
+        sub.className = 'server-sub';
+        const id = document.createElement('code');
+        id.textContent = s.id;
+        sub.append(`${(s.member_count || 0).toLocaleString()} members · `, id);
+
+        meta.append(name, sub);
+        item.append(icon, meta);
+        list.appendChild(item);
+    });
 }
 
 async function saveConfig(e) {
