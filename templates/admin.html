@@ -266,9 +266,158 @@
 
         </div>
 
+        <!-- Auto-Mod Grid -->
+        <div class="grid-2-col">
+
+            <!-- Auto-Mod Settings Box -->
+            <div class="panel-box">
+                <div class="panel-head">
+                    <h3><i class="fa-solid fa-shield-virus" style="color: var(--color-emerald)"></i> Anti-Spam &amp; Scam Filter</h3>
+                    <label class="automod-switch">
+                        <input type="checkbox" id="amEnabled">
+                        <span id="amEnabledLabel">Enabled</span>
+                    </label>
+                </div>
+
+                <form id="automodForm" onsubmit="saveAutomod(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="amThreshold">Scam Score Threshold</label>
+                            <input type="number" id="amThreshold" class="form-control" min="1" max="20">
+                            <small class="form-hint">Lower = stricter. 5 is a good default.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amAction">First Scam Hit</label>
+                            <select id="amAction" class="form-control">
+                                <option value="warn">⚠️ Delete &amp; warn only</option>
+                                <option value="timeout">⏳ Delete &amp; timeout</option>
+                                <option value="ban">🔨 Delete &amp; ban</option>
+                            </select>
+                            <small class="form-hint">A repeat hit within 24h still bans.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amTimeout">Scam Timeout (minutes)</label>
+                            <input type="number" id="amTimeout" class="form-control" min="1" max="10080">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amRateLimit">Flood Limit (messages)</label>
+                            <input type="number" id="amRateLimit" class="form-control" min="2" max="30">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amRateWindow">Flood Window (seconds)</label>
+                            <input type="number" id="amRateWindow" class="form-control" min="1" max="120" step="0.5">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amDuplicate">Duplicate Message Limit</label>
+                            <input type="number" id="amDuplicate" class="form-control" min="2" max="20">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amCrosspost">Cross-Post Channel Limit</label>
+                            <input type="number" id="amCrosspost" class="form-control" min="2" max="20">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amMentions">Mass Mention Limit</label>
+                            <input type="number" id="amMentions" class="form-control" min="2" max="50">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amNewAccount">New Account (days)</label>
+                            <input type="number" id="amNewAccount" class="form-control" min="0" max="365">
+                            <small class="form-hint">Fresh accounts score higher.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amImageDupe">Same Image Limit</label>
+                            <input type="number" id="amImageDupe" class="form-control" min="2" max="20">
+                            <small class="form-hint">Reposts by one member.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amImageRaid">Image Raid Accounts</label>
+                            <input type="number" id="amImageRaid" class="form-control" min="2" max="20">
+                            <small class="form-hint">Same image from N members <span id="amHashMode"></span></small>
+                        </div>
+
+                        <div class="form-group full">
+                            <label for="amBlockDomains">Blocked Domains</label>
+                            <input type="text" id="amBlockDomains" class="form-control" placeholder="fabwin.com, luckywin.vip">
+                            <small class="form-hint">Comma separated. Always removed on sight.</small>
+                        </div>
+
+                        <div class="form-group full">
+                            <label for="amAllowDomains">Allowed Domains</label>
+                            <input type="text" id="amAllowDomains" class="form-control" placeholder="j4fn.site, mysite.com">
+                        </div>
+
+                        <div class="form-group full">
+                            <label for="amKeywords">Extra Blocked Phrases</label>
+                            <input type="text" id="amKeywords" class="form-control" placeholder="free vbucks, dm for carry">
+                        </div>
+                    </div>
+
+                    <div class="automod-signals">
+                        <span class="automod-signals-label">Signal categories</span>
+                        <div id="amSignals" class="automod-toggles">
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">Loading signals...</span>
+                        </div>
+                    </div>
+
+                    <div class="automod-toggles">
+                        <label><input type="checkbox" id="amInvites"> Block invite links</label>
+                        <label><input type="checkbox" id="amMassMentions"> Block mass mentions</label>
+                        <label><input type="checkbox" id="amPurge"> Purge spammer's recent messages</label>
+                        <label><input type="checkbox" id="amBanRepeat"> Ban on repeat offence</label>
+                        <label><input type="checkbox" id="amImageChecks"> Detect repeated images</label>
+                        <label><input type="checkbox" id="amDeepHash"> Deep image hashing (downloads)</label>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 18px;">
+                        <button type="submit" class="btn btn-purple"><i class="fa-solid fa-floppy-disk"></i> Save Filter</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Auto-Mod Activity Box -->
+            <div class="panel-box">
+                <div class="panel-head">
+                    <h3><i class="fa-solid fa-radar"></i> Auto-Mod Activity</h3>
+                    <span id="amStatsLabel" style="font-size: 0.75rem; color: var(--text-secondary);"></span>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label for="amTestText">Test a message</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="amTestText" class="form-control" placeholder="Paste a suspicious message to score it...">
+                        <button type="button" class="btn btn-primary" onclick="testAutomod()"><i class="fa-solid fa-flask"></i></button>
+                    </div>
+                    <div id="amTestResult" style="margin-top: 10px; font-size: 0.82rem; color: var(--text-secondary);"></div>
+                </div>
+
+                <div id="amRecentList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">No auto-mod actions recorded yet.</p>
+                </div>
+
+                <div class="automod-signals" style="margin-top: 16px;">
+                    <span class="automod-signals-label">Blocked Images</span>
+                    <div id="amBlockedList" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+                        <p style="color: var(--text-muted); font-size: 0.8rem;">Select a server in the Moderation Console to load its blocked images.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
     </main>
 
     <!-- External JavaScript -->
     <script src="{{ asset('js/admin.js') }}"></script>
+    <script src="{{ asset('js/automod.js') }}"></script>
 </body>
 </html>
