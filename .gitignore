@@ -26,3 +26,30 @@ desktop.ini
 # Bot data (warnings, runtime state)
 data/
 *.json.tmp
+
+# AI assistant tooling: local config, instruction files and scratch output.
+# None of it belongs in the repo.
+.claude/
+.cursor/
+.cursorrules
+.windsurf/
+.codeium/
+.continue/
+.aider*
+.plandex/
+.specstory/
+.roo/
+.cline/
+.gemini/
+.opencode/
+.mcp.json
+.agent/
+.agents/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+CONVENTIONS.md
+.github/copilot-instructions.md
+ai-docs/
+*.ai.md
+*.plan.md

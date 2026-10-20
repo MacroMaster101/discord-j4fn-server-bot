@@ -113,13 +113,123 @@ def load_config():
         return dict(_config)
 
 
-def get_config():
+# ----------------- PER-GUILD OVERRIDES -----------------
+
+# automod.json holds the bot owner's defaults; a guild stores only the keys it
+# actually changed. New servers therefore inherit sensible tuning, and improving
+# a default still reaches every guild that never overrode it.
+
+GUILD_DIR = os.path.join(DATA_DIR, "guilds")
+os.makedirs(GUILD_DIR, exist_ok=True)
+
+_overrides = {}
+
+
+def _guild_file(guild_id):
+    return os.path.join(GUILD_DIR, "%s.json" % str(guild_id))
+
+
+def _guild_overrides(guild_id):
+    """This guild's overrides, cached. Callers must hold _config_lock."""
+    key = str(guild_id)
+    if key not in _overrides:
+        try:
+            with open(_guild_file(key), "r", encoding="utf-8") as fh:
+                loaded = json.load(fh)
+            _overrides[key] = {k: v for k, v in loaded.items()
+                               if k in DEFAULTS} if isinstance(loaded, dict) else {}
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            _overrides[key] = {}
+    return _overrides[key]
+
+
+def get_config(guild_id=None):
+    """Effective settings: the owner's defaults, with this guild's changes on top."""
     with _config_lock:
-        return dict(_config)
+        merged = dict(_config)
+        if guild_id is not None:
+            merged.update(_guild_overrides(guild_id))
+        return merged
+
+
+def guild_overrides(guild_id):
+    """Only the keys this guild has changed -- what the dashboard shows as custom."""
+    with _config_lock:
+        return dict(_guild_overrides(guild_id))
+
+
+def clear_guild_overrides(guild_id):
+    """Drop a guild's customisation so it follows the defaults again."""
+    key = str(guild_id)
+    with _config_lock:
+        _overrides[key] = {}
+        try:
+            os.remove(_guild_file(key))
+        except OSError:
+            pass
+
+
+def reset_guild_cache():
+    """Forget cached overrides so the next read comes off disk (tests)."""
+    with _config_lock:
+        _overrides.clear()
+
+
+def _coerce(key, value):
+    """Force an incoming value to the shape of its default, or raise ValueError."""
+    default = DEFAULTS[key]
+    if isinstance(default, bool):
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        return bool(value)
+    if isinstance(default, float):
+        return max(0.0, float(value))
+    if isinstance(default, int):
+        return max(0, int(value))
+    if isinstance(default, list):
+        if isinstance(value, str):
+            value = re.split(r"[,\n]", value)
+        return [str(v).strip().lower() for v in value if str(v).strip()]
+    if isinstance(default, str):
+        text = str(value).strip().lower()
+        if key == "scam_action" and text not in ("warn", "timeout", "ban"):
+            raise ValueError("bad scam_action")
+        return text
+    return value
+
+
+def save_guild_config(guild_id, updates):
+    """Store only the keys this guild actually changes. Returns its effective config."""
+    key = str(guild_id)
+    with _config_lock:
+        current = dict(_guild_overrides(key))
+        for name, value in (updates or {}).items():
+            if name not in DEFAULTS:
+                continue
+            try:
+                coerced = _coerce(name, value)
+            except (TypeError, ValueError):
+                continue
+            # Matching the default again means this guild no longer overrides it.
+            if coerced == _config.get(name):
+                current.pop(name, None)
+            else:
+                current[name] = coerced
+        _overrides[key] = current
+        tmp = _guild_file(key) + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(current, fh, indent=2)
+            os.replace(tmp, _guild_file(key))
+        except OSError:
+            pass
+        merged = dict(_config)
+        merged.update(current)
+        return merged
 
 
 def save_config(updates):
-    """Merge `updates` into the live config and persist. Returns the new config."""
+    """Merge `updates` into the owner's defaults and persist."""
     global _config
     with _config_lock:
         merged = dict(_config)

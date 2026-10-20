@@ -557,6 +557,65 @@ check("domains extracted",
       automod.extract_domains("go to https://Fabwin.com/ref/9 now") == ["fabwin.com"],
       automod.extract_domains("go to https://Fabwin.com/ref/9 now"))
 
+print("")
+print("Per-guild config")
+import shutil
+_real_guild_dir = automod.GUILD_DIR
+automod.GUILD_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "_t_guilds")
+os.makedirs(automod.GUILD_DIR, exist_ok=True)
+automod.reset_guild_cache()
+
+default_threshold = automod.get_config()["scam_threshold"]
+check("a guild with no overrides inherits the defaults",
+      automod.get_config(111)["scam_threshold"] == default_threshold)
+
+automod.save_guild_config(111, {"scam_threshold": 8, "block_invites": False})
+check("an override applies to that guild",
+      automod.get_config(111)["scam_threshold"] == 8)
+check("another guild is unaffected",
+      automod.get_config(222)["scam_threshold"] == default_threshold)
+check("the owner's defaults are unaffected",
+      automod.get_config()["scam_threshold"] == default_threshold)
+check("only changed keys are stored",
+      set(automod.guild_overrides(111)) == {"scam_threshold", "block_invites"},
+      "-> %r" % (automod.guild_overrides(111),))
+
+automod.save_guild_config(111, {"scam_threshold": default_threshold})
+check("matching the default drops the override",
+      "scam_threshold" not in automod.guild_overrides(111),
+      "-> %r" % (automod.guild_overrides(111),))
+
+automod.reset_guild_cache()
+check("overrides survive a reload",
+      automod.get_config(111)["block_invites"] is False)
+
+automod.save_guild_config(111, {"scam_action": "nonsense"})
+check("a bad value is rejected, not stored",
+      "scam_action" not in automod.guild_overrides(111))
+
+automod.clear_guild_overrides(111)
+check("clearing returns the guild to the defaults",
+      automod.guild_overrides(111) == {}
+      and automod.get_config(111)["block_invites"] is True)
+
+# The whole point: one guild's tuning must not leak into another's verdict.
+automod.save_guild_config(333, {"enabled": False})
+automod.reset_state()
+off = automod.evaluate(text=scam, guild_id=333, user_id=1, channel_id=10,
+                       attachments=1, config=automod.get_config(333), now=1000.0)
+automod.reset_state()
+on_ = automod.evaluate(text=scam, guild_id=444, user_id=1, channel_id=10,
+                       attachments=1, config=automod.get_config(444), now=1000.0)
+check("a guild that disabled the filter is not moderated", not off, "-> %r" % (off,))
+check("a guild that did not is still moderated", bool(on_), "-> %r" % (on_,))
+
+automod.clear_guild_overrides(333)
+shutil.rmtree(automod.GUILD_DIR, ignore_errors=True)
+automod.GUILD_DIR = _real_guild_dir
+automod.reset_guild_cache()
+
+
 print("\n%d checks failed" % len(FAILURES))
 if FAILURES:
     for name in FAILURES:
