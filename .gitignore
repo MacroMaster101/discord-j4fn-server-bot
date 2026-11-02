@@ -53,6 +53,35 @@ AGENTS.md
 GEMINI.md
 CONVENTIONS.md
 .github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.cursorignore
+.clinerules
+.roomodes
+.windsurfrules
+.trae/
+.kiro/
+.augment/
+.qodo/
+.serena/
 ai-docs/
 *.ai.md
 *.plan.md
+
+# Scratch and backup files. Named by suffix or directory rather than by title,
+# because a repo may legitimately want to track a NOTES.md or TODO.md and those
+# should stay a deliberate choice.
+scratch/
+.scratch/
+*.bak
+*.orig
+*.rej
+*~
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Editor workspace files
+*.code-workspace
