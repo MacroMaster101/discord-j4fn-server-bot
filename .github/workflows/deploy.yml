@@ -19,16 +19,18 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
 
       - name: Install dependencies
-        # No --no-cache-dir here: setup-python's `cache: pip` saves
-        # ~/.cache/pip afterwards and fails the job if nothing wrote it.
+        # No --no-cache-dir here, so `cache: pip` has something to save.
+        # Up to setup-python v5 an empty ~/.cache/pip failed the job; v6
+        # downgraded that to a warning, so this is now about keeping the
+        # cache useful rather than avoiding a failure.
         run: pip install -r requirements.txt
 
       - name: Auto-mod detection checks
@@ -56,7 +58,7 @@ jobs:
         # Pinned to a commit, not the tag: a tag can be moved, and this step
         # receives the production SSH key, so a compromised release would hand
         # over the whole host. Dependabot proposes the bumps.
-        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           # EC2_* secret names are carried over from the old AWS host; they now
           # hold the Oracle Cloud instance's address, user and SSH key.
