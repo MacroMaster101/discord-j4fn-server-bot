@@ -126,7 +126,17 @@ _overrides = {}
 
 
 def _guild_file(guild_id):
-    return os.path.join(GUILD_DIR, "%s.json" % str(guild_id))
+    """The settings file for a guild, by id.
+
+    The id reaches here from a request, and the owner's routes do not check it
+    against a real guild the way require_guild_access does for everyone else, so
+    a non-numeric value must never become a path. Discord ids are snowflakes, so
+    anything but digits is refused outright rather than sanitised.
+    """
+    key = str(guild_id)
+    if not key.isdigit():
+        raise ValueError("guild id must be numeric, got %r" % (guild_id,))
+    return os.path.join(GUILD_DIR, "%s.json" % key)
 
 
 def _guild_overrides(guild_id):
@@ -138,7 +148,7 @@ def _guild_overrides(guild_id):
                 loaded = json.load(fh)
             _overrides[key] = {k: v for k, v in loaded.items()
                                if k in DEFAULTS} if isinstance(loaded, dict) else {}
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
+        except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
             _overrides[key] = {}
     return _overrides[key]
 
@@ -165,7 +175,7 @@ def clear_guild_overrides(guild_id):
         _overrides[key] = {}
         try:
             os.remove(_guild_file(key))
-        except OSError:
+        except (OSError, ValueError):
             pass
 
 
@@ -216,12 +226,12 @@ def save_guild_config(guild_id, updates):
             else:
                 current[name] = coerced
         _overrides[key] = current
-        tmp = _guild_file(key) + ".tmp"
         try:
+            tmp = _guild_file(key) + ".tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
                 json.dump(current, fh, indent=2)
             os.replace(tmp, _guild_file(key))
-        except OSError:
+        except (OSError, ValueError):
             pass
         merged = dict(_config)
         merged.update(current)

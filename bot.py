@@ -264,12 +264,26 @@ def require_auth(f):
     return decorated
 
 
+class GuildConflict(Exception):
+    """The query string and the body named different guilds."""
+
+
 def _requested_guild_id():
-    """The guild a request is about, from the query string or the JSON body."""
-    gid = request.args.get("guild_id")
-    if not gid and request.is_json:
-        gid = (request.get_json(silent=True) or {}).get("guild_id")
-    return str(gid) if gid else ""
+    """The guild a request is about, from the query string or the JSON body.
+
+    Both are read and a disagreement is refused. Reading only the first of the
+    two is what let a guild admin pass their own guild in the query string,
+    satisfy require_guild_access with it, and then have the handler act on
+    whatever guild the body named instead.
+    """
+    q = str(request.args.get("guild_id") or "")
+    b = ""
+    if request.is_json:
+        b = str((request.get_json(silent=True) or {}).get("guild_id") or "")
+    if q and b and q != b:
+        raise GuildConflict(
+            "guild_id differs between the query string and the body")
+    return q or b
 
 
 def require_guild_access(f):
@@ -281,6 +295,15 @@ def require_guild_access(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
+        try:
+            guild_id = _requested_guild_id()
+        except GuildConflict as exc:
+            return jsonify({"message": str(exc)}), 400
+
+        # The one guild this request is about. Handlers must read this and never
+        # the request again, so that what was authorized is what is acted on.
+        request.guild_id = guild_id
+
         if is_owner():
             request.guild_scope = None          # owner sees everything
             return f(*args, **kwargs)
@@ -289,7 +312,6 @@ def require_guild_access(f):
         if not user:
             return jsonify({"message": "Unauthorized"}), 401
 
-        guild_id = _requested_guild_id()
         if not guild_id:
             return jsonify({"message": "guild_id is required"}), 400
         if not auth.may_manage(user, guild_id, bot_guild_ids()):
@@ -735,7 +757,7 @@ def api_set_config():
 @app.route("/admin/api/automod", methods=["GET"])
 @require_guild_access
 def api_get_automod():
-    guild_id = request.args.get("guild_id") or None
+    guild_id = request.guild_id or None
     return jsonify({
         "guild_id": guild_id,
         "config": automod.get_config(guild_id),
@@ -757,14 +779,20 @@ def api_get_automod():
 @require_guild_access
 def api_set_automod():
     data = request.get_json() or {}
-    guild_id = str(data.pop("guild_id", "") or "")
+    data.pop("guild_id", None)          # not a setting; the decorator resolved it
+    guild_id = request.guild_id
     try:
         if guild_id:
             updated = automod.save_guild_config(guild_id, data)
             add_log(f"Auto-mod settings updated for guild {guild_id}.", "success")
-        else:
+        elif is_owner():
             updated = automod.save_config(data)
             add_log("Auto-mod defaults updated from dashboard.", "success")
+        else:
+            # Belt and braces: require_guild_access already refuses a signed-in
+            # admin without a guild, but the bot-wide defaults every other guild
+            # inherits must never be one missing field away from being writable.
+            return jsonify({"message": "guild_id is required"}), 400
         return jsonify({"status": "success", "config": updated}), 200
     except Exception as e:
         add_log(f"Error saving auto-mod settings: {e}", "error")
@@ -775,7 +803,7 @@ def api_set_automod():
 @app.route("/admin/api/automod/blocked", methods=["GET"])
 @require_guild_access
 def api_blocked_images():
-    guild_id = request.args.get("guild_id", "")
+    guild_id = request.guild_id
     if not guild_id:
         return jsonify([]), 200
     return jsonify(automod.blocked_images(guild_id))
@@ -786,7 +814,7 @@ def api_blocked_images():
 @require_guild_access
 def api_remove_blocked_image():
     data = request.get_json() or {}
-    guild_id = str(data.get("guild_id", ""))
+    guild_id = request.guild_id
     entry_id = str(data.get("id", ""))
     if not guild_id or not entry_id:
         return jsonify({"message": "guild_id and id are required"}), 400
@@ -801,7 +829,7 @@ def api_remove_blocked_image():
 @require_guild_access
 def api_reset_automod():
     """Drop a guild's customisation so it follows the bot defaults again."""
-    guild_id = _requested_guild_id()
+    guild_id = request.guild_id
     if not guild_id:
         return jsonify({"message": "guild_id is required"}), 400
     automod.clear_guild_overrides(guild_id)
@@ -816,7 +844,7 @@ def api_test_automod():
     data = request.get_json() or {}
     text = str(data.get("text", ""))[:4000]
     attachments = int(data.get("attachments", 0) or 0)
-    guild_id = data.get("guild_id") or None
+    guild_id = request.guild_id or None
     cfg = automod.get_config(guild_id)
     score, reasons = automod.score_content(text, attachments=attachments, config=cfg)
     threshold = cfg.get("scam_threshold", 5)
@@ -983,7 +1011,7 @@ def api_mod_actions():
 @app.route("/admin/api/mod/warnings", methods=["GET"])
 @require_guild_access
 def api_mod_warnings():
-    guild_id = request.args.get("guild_id")
+    guild_id = request.guild_id
     if not guild_id:
         return jsonify({"message": "guild_id required"}), 400
     if not client.is_ready():
@@ -1014,7 +1042,7 @@ def api_mod_warnings():
 def api_mod_action():
     data = request.get_json() or {}
     action = data.get("action")
-    guild_id = data.get("guild_id")
+    guild_id = request.guild_id
     user_id = data.get("user_id")
     reason = data.get("reason", "Issued from dashboard")
     duration = data.get("duration")  # minutes for timeout
@@ -1151,11 +1179,17 @@ STREAMING_URL = os.getenv("STREAMING_URL", "https://j4fn.site")
 
 if not ADMIN_PASSWORD:
     ADMIN_PASSWORD = secrets.token_urlsafe(10)
+    # Printing the password would put it in `docker compose logs`, which is
+    # readable by anyone who reaches the host and is kept far longer than the
+    # moment it is needed. It goes to .env instead, mode 600; it is only echoed
+    # when that write failed and there would otherwise be no way to sign in.
     try:
         update_env_variable("ADMIN_PASSWORD", ADMIN_PASSWORD)
+        print("🔑 ADMIN_PASSWORD was unset: generated one and wrote it "
+              "to .env. Read it from there (it is not logged).")
     except Exception:
-        pass
-    print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
+        print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
+        print("⚠️  Could not write it to .env -- copy it now; it is not stored.")
 
 # Signs the session cookie. Generated once and kept in .env: a key that changed
 # on every boot would sign everyone out on each deploy.
