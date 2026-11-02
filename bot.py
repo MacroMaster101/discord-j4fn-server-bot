@@ -280,11 +280,31 @@ def bot_guild_ids():
     return [g.id for g in client.guilds] if client.is_ready() else []
 
 
+def _bad_origin():
+    """True when a state-changing request did not come from our own pages.
+
+    Any cookie-borne identity is open to cross-site POSTs: a hostile page can
+    submit a form to us and the browser attaches the cookie. That is true of the
+    Cloudflare Access cookie as much as the Discord session, so this runs for
+    the owner too -- /admin/api/restart takes no body, which is exactly what a
+    plain auto-submitting form can reach. A bearer token is not affected, since
+    setting that header forces a preflight we never answer.
+    """
+    if request.method == "GET":
+        return False
+    origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    if not origin:
+        return False
+    return urlparse(origin).netloc != urlparse(request.url_root).netloc
+
+
 def require_auth(f):
     """Owner only. Everything that can affect the bot globally uses this."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if is_owner():
+            if _bad_origin():
+                return jsonify({"message": "Bad origin"}), 403
             return f(*args, **kwargs)
         return jsonify({"message": "Unauthorized"}), 401
     return decorated
@@ -331,6 +351,8 @@ def require_guild_access(f):
         request.guild_id = guild_id
 
         if is_owner():
+            if _bad_origin():
+                return jsonify({"message": "Bad origin"}), 403
             request.guild_scope = None          # owner sees everything
             return f(*args, **kwargs)
 
@@ -343,12 +365,8 @@ def require_guild_access(f):
         if not auth.may_manage(user, guild_id, bot_guild_ids()):
             return jsonify({"message": "Forbidden"}), 403
 
-        # A browser-session caller is vulnerable to cross-site POSTs in a way a
-        # bearer token is not, so state-changing requests must come from us.
-        if request.method != "GET":
-            origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
-            if origin and urlparse(origin).netloc != urlparse(request.url_root).netloc:
-                return jsonify({"message": "Bad origin"}), 403
+        if _bad_origin():
+            return jsonify({"message": "Bad origin"}), 403
 
         request.guild_scope = guild_id
         request.cf_user_email = "discord:%s" % user["uid"]

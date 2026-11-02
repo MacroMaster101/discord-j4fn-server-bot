@@ -307,6 +307,14 @@ def post_status(client, path, payload):
         return 599
 
 
+def post_status_h(client, path, headers):
+    """As post_status, for a POST that carries headers rather than a body."""
+    try:
+        return client.post(path, headers=headers).status_code
+    except Exception:
+        return 599
+
+
 def _guild_file_rejects(guild_id):
     """True when automod refuses to turn this id into a path."""
     try:
@@ -395,6 +403,34 @@ with app.test_client() as c:
         bot._login_lockouts.clear()
         r = c.post("/api/login", json={"password": bot.ADMIN_PASSWORD})
         check("and works again once the lockout has cleared",
+              r.status_code == 200, "-> %d" % r.status_code)
+    finally:
+        bot._login_failures.clear()
+        bot._login_lockouts.clear()
+
+
+print("\nThe owner is protected from cross-site requests too")
+# Access and the admin token both ride on a cookie for the console, so a hostile
+# page could auto-submit a form to an owner-only endpoint while the owner is
+# signed in. /admin/api/restart takes no body, which is exactly what that
+# reaches. The origin check used to run only on the Discord-session branch.
+with app.test_client() as c:
+    bot._login_failures.clear()
+    bot._login_lockouts.clear()
+    try:
+        r = c.post("/api/presence/rotate", headers=dict(
+            OWNER, Origin="https://evil.example"))
+        check("a foreign origin is refused for the owner",
+              r.status_code == 403, "-> %d" % r.status_code)
+
+        # 599 means the handler ran and the test double has no event loop --
+        # which is the point: it was not turned away at the origin check.
+        st = post_status_h(c, "/api/presence/rotate",
+                           dict(OWNER, Origin="http://localhost"))
+        check("our own origin is still accepted", st != 403, "-> %s" % st)
+
+        r = c.get("/api/config", headers=dict(OWNER, Origin="https://evil.example"))
+        check("a read is not blocked by origin",
               r.status_code == 200, "-> %d" % r.status_code)
     finally:
         bot._login_failures.clear()
