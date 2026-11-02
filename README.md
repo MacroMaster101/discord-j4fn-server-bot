@@ -1,6 +1,9 @@
 <div align="center">
 
-  <img src="static/logo.png" alt="J4FN Logo" width="160" style="border-radius: 24px; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);" />
+  <!-- The rounding is baked into assets/logo.png: GitHub strips inline style
+       from README HTML, so border-radius here never applied. static/logo.png
+       stays square because the app rounds it in CSS and uses it as a favicon. -->
+  <img src="assets/logo.png" alt="J4FN Logo" width="160" />
 
   # 🤖 JUST FOR FUN (J4FN Bot)
 
@@ -90,6 +93,8 @@ discord-j4fn-server-bot/
 ├── data/                   # Runtime state (git-ignored; mounted into the container)
 │   ├── automod.json        # Filter thresholds
 │   └── guilds/             # Per-guild settings
+├── assets/
+│   └── logo.png            # Rounded logo for this README only (not served)
 ├── static/                 # Static web assets
 │   ├── favicon.ico         # Browser tab icon
 │   ├── logo.png            # 1024x1024 official J4FN red monogram logo
