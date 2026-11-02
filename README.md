@@ -12,7 +12,7 @@
 
   [![Discord.py](https://img.shields.io/badge/Discord.py-v2.3+-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com)
   [![Cloudflare Zero Trust](https://img.shields.io/badge/Cloudflare-Zero_Trust-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://cloudflare.com)
-  [![AWS EC2](https://img.shields.io/badge/AWS-EC2_Deployment-FF9900?style=for-the-badge&logo=amazonec2&logoColor=white)](https://aws.amazon.com)
+  [![Oracle Cloud](https://img.shields.io/badge/Oracle_Cloud-Compute-F80000?style=for-the-badge&logo=oracle&logoColor=white)](https://www.oracle.com/cloud/)
   [![Docker Compose](https://img.shields.io/badge/Docker-Compose_Build-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
   [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 
@@ -25,7 +25,7 @@
 **JUST FOR FUN (J4FN Bot)** is a production-grade Discord server moderation bot and community management suite. It features a content-aware anti-spam and scam filter, member warnings system, customizable welcome embeds, presence activity rotation, and a protected Admin Operations Console supporting **Cloudflare Zero Trust Access**.
 
 > [!NOTE]
-> Deployed 24/7 on AWS EC2 (`13.212.35.227`) using Docker Compose & Cloudflare Zero Trust Tunnels at **[bot.j4fn.site](https://bot.j4fn.site)**.
+> Deployed 24/7 on an Oracle Cloud compute instance (Ubuntu 24.04) using Docker Compose & Cloudflare Zero Trust Tunnels at **[bot.j4fn.site](https://bot.j4fn.site)**. Only SSH is open on the host: the dashboard is published on `127.0.0.1` and reached exclusively through the tunnel.
 
 ---
 
@@ -292,7 +292,7 @@ Open http://localhost:8080. To use the admin console, go to `/login` and use the
 admin password, which is printed on first start and saved to `.env` as
 `ADMIN_PASSWORD`. Cloudflare Access sign-in only works on the deployed site.
 
-### Docker & Cloudflare Tunnel (AWS EC2 Deployment)
+### Docker & Cloudflare Tunnel (Oracle Cloud Deployment)
 ```bash
 # Start bot and Cloudflare Tunnel containers
 docker compose up -d --build
