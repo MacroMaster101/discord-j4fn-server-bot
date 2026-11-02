@@ -21,6 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Later steps run repository code (the test suites, `import bot`), so
+          # do not leave the job's token sitting in .git/config for them.
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -31,6 +35,13 @@ jobs:
         # No --no-cache-dir here: setup-python's `cache: pip` saves
         # ~/.cache/pip afterwards and fails the job if nothing wrote it.
         run: pip install -r requirements.txt
+
+      - name: Audit dependencies for known vulnerabilities
+        # The pins in requirements.txt are only as good as the day they were
+        # chosen; this fails the build when one of them picks up an advisory.
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --strict
 
       - name: Byte-compile
         run: python -m compileall -q bot.py automod.py auth.py test_automod.py test_auth.py

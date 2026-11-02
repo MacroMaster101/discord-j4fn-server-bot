@@ -58,6 +58,12 @@ class FakeClient:
     def is_ready(self):
         return True
 
+    def get_guild(self, gid):
+        for g in self.guilds:
+            if g.id == int(gid):
+                return g
+        return None
+
 
 def set_bot_guilds(*guild_ids):
     bot.client = FakeClient(guild_ids)
@@ -287,6 +293,149 @@ try:
           _seen.get("user-agent") == auth.USER_AGENT)
 finally:
     _urlreq.urlopen = _real_urlopen
+
+def post_status(client, path, payload):
+    """The status of a POST, or 599 if the handler was reached and blew up.
+
+    A guild-scoped handler must be refused by the decorator before it runs at
+    all, so an exception from inside it is itself the failure we are testing
+    for -- not a broken test.
+    """
+    try:
+        return client.post(path, json=payload).status_code
+    except Exception:
+        return 599
+
+
+def post_status_h(client, path, headers):
+    """As post_status, for a POST that carries headers rather than a body."""
+    try:
+        return client.post(path, headers=headers).status_code
+    except Exception:
+        return 599
+
+
+def _guild_file_rejects(guild_id):
+    """True when automod refuses to turn this id into a path."""
+    try:
+        automod._guild_file(guild_id)
+        return False
+    except ValueError:
+        return True
+
+
+print("\nThe guild in the query string must not disagree with the body")
+# The decorator reads the query string first; several handlers used to re-read
+# the body. A legitimate guild in the query string with someone else's in the
+# body must never be accepted, or every guild-scoped endpoint is cross-tenant.
+# 400 is the answer rather than 403: the request contradicts itself, so it is
+# refused before there is a single guild to authorize at all. What each check
+# asserts is that the handler never ran.
+with app.test_client() as c:
+    sign_in(c, [ALICE_GUILD])
+
+    st = post_status(c, "/api/mod/action?guild_id=" + ALICE_GUILD,
+                     {"guild_id": OTHER_GUILD, "action": "ban",
+                      "user_id": "5", "reason": "x"})
+    check("a moderation action cannot name another guild in the body",
+          st in (400, 403), "-> %s" % st)
+
+    st = post_status(c, "/api/automod?guild_id=" + ALICE_GUILD,
+                     {"guild_id": OTHER_GUILD, "scam_threshold": 1})
+    check("settings cannot be written to another guild from the body",
+          st in (400, 403), "-> %s" % st)
+
+    st = post_status(c, "/api/automod/blocked/remove?guild_id=" + ALICE_GUILD,
+                     {"guild_id": OTHER_GUILD, "id": "1"})
+    check("a blocked image cannot be cleared on another guild",
+          st in (400, 403), "-> %s" % st)
+
+
+print("\nA guild admin must not be able to write the bot-wide defaults")
+# Omitting guild_id from the body while the query string carries a guild the user
+# does run used to fall through to automod.save_config(), the owner's defaults
+# that every other guild inherits.
+with app.test_client() as c:
+    sign_in(c, [ALICE_GUILD])
+    before = automod.get_config(None)["scam_threshold"]
+    st = post_status(c, "/api/automod?guild_id=" + ALICE_GUILD,
+                     {"scam_threshold": before + 5})
+    after = automod.get_config(None)["scam_threshold"]
+    check("the bot-wide scam threshold is unchanged",
+          after == before, "-> %r became %r (status %s)" % (before, after, st))
+
+
+print("\nA guild id never becomes a file path")
+check("a traversal guild id is refused outright",
+      _guild_file_rejects("../warnings"),
+      "-> _guild_file accepted it")
+check("a non-numeric guild id is refused outright",
+      _guild_file_rejects("not-a-guild"))
+check("a real snowflake is still accepted",
+      not _guild_file_rejects(ALICE_GUILD))
+
+
+print("\nGuessing the admin token is throttled everywhere, not just at /api/login")
+# /api/auth-check is unauthenticated and says whether a bearer token is good, so
+# it used to be an unlimited password oracle: the lockout only counted failures
+# inside api_login. The counter now lives in _token_matches, which every token
+# check goes through.
+with app.test_client() as c:
+    bot._login_failures.clear()
+    bot._login_lockouts.clear()
+    try:
+        reported = None
+        for _ in range(bot.LOGIN_MAX_ATTEMPTS + 2):
+            r = c.get("/api/auth-check",
+                      headers={"Authorization": "Bearer wrong-token"})
+            reported = r.get_json().get("authenticated")
+        check("a wrong token never reports authenticated",
+              reported is False, "-> %r" % (reported,))
+
+        # The shared counter is the point: once the oracle has been hammered,
+        # even the right password is refused, so an attacker cannot tell a
+        # correct guess from a locked-out one.
+        r = c.post("/api/login", json={"password": bot.ADMIN_PASSWORD})
+        check("the correct password is refused while locked out",
+              r.status_code == 429, "-> %d" % r.status_code)
+
+        bot._login_failures.clear()
+        bot._login_lockouts.clear()
+        r = c.post("/api/login", json={"password": bot.ADMIN_PASSWORD})
+        check("and works again once the lockout has cleared",
+              r.status_code == 200, "-> %d" % r.status_code)
+    finally:
+        bot._login_failures.clear()
+        bot._login_lockouts.clear()
+
+
+print("\nThe owner is protected from cross-site requests too")
+# Access and the admin token both ride on a cookie for the console, so a hostile
+# page could auto-submit a form to an owner-only endpoint while the owner is
+# signed in. /admin/api/restart takes no body, which is exactly what that
+# reaches. The origin check used to run only on the Discord-session branch.
+with app.test_client() as c:
+    bot._login_failures.clear()
+    bot._login_lockouts.clear()
+    try:
+        r = c.post("/api/presence/rotate", headers=dict(
+            OWNER, Origin="https://evil.example"))
+        check("a foreign origin is refused for the owner",
+              r.status_code == 403, "-> %d" % r.status_code)
+
+        # 599 means the handler ran and the test double has no event loop --
+        # which is the point: it was not turned away at the origin check.
+        st = post_status_h(c, "/api/presence/rotate",
+                           dict(OWNER, Origin="http://localhost"))
+        check("our own origin is still accepted", st != 403, "-> %s" % st)
+
+        r = c.get("/api/config", headers=dict(OWNER, Origin="https://evil.example"))
+        check("a read is not blocked by origin",
+              r.status_code == 200, "-> %d" % r.status_code)
+    finally:
+        bot._login_failures.clear()
+        bot._login_lockouts.clear()
+
 
 shutil.rmtree(automod.GUILD_DIR, ignore_errors=True)
 

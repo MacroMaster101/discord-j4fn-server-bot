@@ -27,6 +27,15 @@ async function checkAuth() {
             loadStats();
             loadConfig();
         } else {
+            // Drop a token the server rejected. Every bearer check is throttled,
+            // and loadStats polls every 5s, so a stale token left in place would
+            // spend the six-failure lockout in half a minute and shut the real
+            // password out for fifteen. No token means no Authorization header,
+            // which is not counted at all.
+            if (authToken) {
+                authToken = '';
+                try { localStorage.removeItem('bot_auth_token'); } catch (_) {}
+            }
             document.getElementById('adminLoginOverlay').style.display = 'flex';
         }
     } catch (e) {

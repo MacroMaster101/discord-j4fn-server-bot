@@ -1,7 +1,17 @@
-discord.py
-python-dotenv
-flask
-PyJWT[crypto]
+# Pinned exactly. Unpinned, a rebuild installed whatever was newest that day, so
+# a hijacked release landed in production unreviewed and no two builds matched.
+# Dependabot proposes bumps as pull requests onto dev (.github/dependabot.yml),
+# which is where a new version should be read before it ships.
+discord.py==2.7.1
+python-dotenv==1.2.4
+flask==3.1.3
+# Serves the dashboard in place of Flask's development server, which is
+# single threaded and has no protection against slow or oversized requests.
+waitress==3.0.2
+PyJWT[crypto]==2.15.1
+
 # Optional: enables perceptual image hashing so a re-encoded screenshot is
 # still recognised. Without it the bot falls back to attachment metadata.
-Pillow
+# Decodes untrusted attachments, so keep this current -- 13.0.0 carries the
+# fixes for the October 2026 advisory batch (CVE-2026-112398 and others).
+Pillow==13.0.0

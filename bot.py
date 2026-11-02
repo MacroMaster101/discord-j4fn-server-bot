@@ -40,7 +40,10 @@ PRESENCE_ROTATION_ENABLED = True
 CUSTOM_PRESENCE_STATUS = "online"
 CUSTOM_PRESENCE_ACTIVITY = "watching"
 CUSTOM_PRESENCE_TEXT = ""
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+# No default: an unset password is generated at startup (see below). A literal
+# fallback here was a known public string and would silently come back if this
+# module were ever read before that runs.
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 log_lock = threading.Lock()
 warn_lock = threading.Lock()
@@ -62,9 +65,28 @@ def add_log(message, level="info"):
     sys.stdout.flush()
 
 
+def _utcnow():
+    """Timezone-aware UTC now.
+
+    datetime.utcnow() is deprecated and, worse, returned a naive value that only
+    claimed to be UTC. Everything here is aware, so subtracting two of them works
+    and discord.py stamps embeds correctly.
+    """
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _utc_iso():
+    """UTC as an ISO string ending in Z, which is the shape the dashboard parses.
+
+    An aware isoformat() ends in +00:00, so appending "Z" the way the old naive
+    calls did would produce "...+00:00Z" and break every timestamp in the UI.
+    """
+    return _utcnow().isoformat().replace("+00:00", "Z")
+
+
 def add_mod_action(action, moderator, target, reason, guild_name, guild_id=None):
     entry = {
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "timestamp": _utc_iso(),
         "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "action": action,
         "moderator": str(moderator),
@@ -107,7 +129,7 @@ def add_warning(guild_id, user_id, moderator_id, reason):
             "id": int(time.time() * 1000),
             "moderator": str(moderator_id),
             "reason": reason or "No reason provided",
-            "time": datetime.datetime.utcnow().isoformat() + "Z",
+            "time": _utc_iso(),
         }
         data[gkey][ukey].append(entry)
         _save_warnings(data)
@@ -223,10 +245,36 @@ def _cloudflare_identity():
 
 
 def _token_matches():
+    """True when the request carries the admin token.
+
+    The throttle lives here, not only in api_login, because every bearer-token
+    check in the app comes through this function. /api/auth-check is
+    unauthenticated by design and answers whether a token is good, so without a
+    counter here it was an unlimited password oracle -- reachable from the
+    internet, since the bare /api/... mount sits outside the Access app. The
+    six-failure lockout on the login form was decorative while that stood.
+
+    The helpers below are defined further down the module; these names resolve
+    at call time, which is always inside a request.
+    """
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return False
-    return secrets.compare_digest(auth_header[len("Bearer "):], str(ADMIN_PASSWORD))
+
+    offered = auth_header[len("Bearer "):]
+    ip = _client_ip()
+    now = time.time()
+    with login_lock:
+        # Locked out: do not compare at all. Answering "wrong" without checking
+        # is what stops the lockout itself from leaking whether a guess was
+        # right.
+        if _login_blocked(ip, now):
+            return False
+        if secrets.compare_digest(offered, str(ADMIN_PASSWORD)):
+            _login_failures.pop(ip, None)
+            return True
+        _record_login_failure(ip, now)
+    return False
 
 
 def is_owner():
@@ -251,22 +299,56 @@ def bot_guild_ids():
     return [g.id for g in client.guilds] if client.is_ready() else []
 
 
+def _bad_origin():
+    """True when a state-changing request did not come from our own pages.
+
+    Any cookie-borne identity is open to cross-site POSTs: a hostile page can
+    submit a form to us and the browser attaches the cookie. That is true of the
+    Cloudflare Access cookie as much as the Discord session, so this runs for
+    the owner too -- /admin/api/restart takes no body, which is exactly what a
+    plain auto-submitting form can reach. A bearer token is not affected, since
+    setting that header forces a preflight we never answer.
+    """
+    if request.method == "GET":
+        return False
+    origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    if not origin:
+        return False
+    return urlparse(origin).netloc != urlparse(request.url_root).netloc
+
+
 def require_auth(f):
     """Owner only. Everything that can affect the bot globally uses this."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if is_owner():
+            if _bad_origin():
+                return jsonify({"message": "Bad origin"}), 403
             return f(*args, **kwargs)
         return jsonify({"message": "Unauthorized"}), 401
     return decorated
 
 
+class GuildConflict(Exception):
+    """The query string and the body named different guilds."""
+
+
 def _requested_guild_id():
-    """The guild a request is about, from the query string or the JSON body."""
-    gid = request.args.get("guild_id")
-    if not gid and request.is_json:
-        gid = (request.get_json(silent=True) or {}).get("guild_id")
-    return str(gid) if gid else ""
+    """The guild a request is about, from the query string or the JSON body.
+
+    Both are read and a disagreement is refused. Reading only the first of the
+    two is what let a guild admin pass their own guild in the query string,
+    satisfy require_guild_access with it, and then have the handler act on
+    whatever guild the body named instead.
+    """
+    q = str(request.args.get("guild_id") or "")
+    b = ""
+    if request.is_json:
+        b = str((request.get_json(silent=True) or {}).get("guild_id") or "")
+    if q and b and q != b:
+        raise GuildConflict(
+            "guild_id differs between the query string and the body")
+    return q or b
 
 
 def require_guild_access(f):
@@ -278,7 +360,22 @@ def require_guild_access(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
+        try:
+            guild_id = _requested_guild_id()
+        except GuildConflict:
+            # A fixed message, not the exception: what the caller needs to know
+            # is that the request contradicts itself, nothing about our internals.
+            return jsonify({
+                "message": "guild_id differs between the query string and the body",
+            }), 400
+
+        # The one guild this request is about. Handlers must read this and never
+        # the request again, so that what was authorized is what is acted on.
+        request.guild_id = guild_id
+
         if is_owner():
+            if _bad_origin():
+                return jsonify({"message": "Bad origin"}), 403
             request.guild_scope = None          # owner sees everything
             return f(*args, **kwargs)
 
@@ -286,18 +383,13 @@ def require_guild_access(f):
         if not user:
             return jsonify({"message": "Unauthorized"}), 401
 
-        guild_id = _requested_guild_id()
         if not guild_id:
             return jsonify({"message": "guild_id is required"}), 400
         if not auth.may_manage(user, guild_id, bot_guild_ids()):
             return jsonify({"message": "Forbidden"}), 403
 
-        # A browser-session caller is vulnerable to cross-site POSTs in a way a
-        # bearer token is not, so state-changing requests must come from us.
-        if request.method != "GET":
-            origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
-            if origin and urlparse(origin).netloc != urlparse(request.url_root).netloc:
-                return jsonify({"message": "Bad origin"}), 403
+        if _bad_origin():
+            return jsonify({"message": "Bad origin"}), 403
 
         request.guild_scope = guild_id
         request.cf_user_email = "discord:%s" % user["uid"]
@@ -577,7 +669,7 @@ def api_stats():
     uptime_seconds = 0
     uptime_str = "N/A"
     if BOT_START_TIME:
-        delta = datetime.datetime.utcnow() - BOT_START_TIME
+        delta = _utcnow() - BOT_START_TIME
         uptime_seconds = int(delta.total_seconds())
         h, r = divmod(uptime_seconds, 3600)
         m, s = divmod(r, 60)
@@ -722,8 +814,11 @@ def api_set_config():
         add_log(f"Configuration updated. Prefix: {PREFIX}, Streaming URL: {STREAMING_URL}", "success")
         return jsonify({"status": "success", "token": ADMIN_PASSWORD}), 200
     except Exception as e:
+        # The detail goes to the log, which the console shows; the response says
+        # only that it failed. Exception text in a response leaks paths, library
+        # internals and sometimes the value that caused the error.
         add_log(f"Error saving configuration: {e}", "error")
-        return jsonify({"message": f"Error saving: {e}"}), 500
+        return jsonify({"message": "Could not save the configuration"}), 500
 
 
 
@@ -732,7 +827,7 @@ def api_set_config():
 @app.route("/admin/api/automod", methods=["GET"])
 @require_guild_access
 def api_get_automod():
-    guild_id = request.args.get("guild_id") or None
+    guild_id = request.guild_id or None
     return jsonify({
         "guild_id": guild_id,
         "config": automod.get_config(guild_id),
@@ -754,25 +849,31 @@ def api_get_automod():
 @require_guild_access
 def api_set_automod():
     data = request.get_json() or {}
-    guild_id = str(data.pop("guild_id", "") or "")
+    data.pop("guild_id", None)          # not a setting; the decorator resolved it
+    guild_id = request.guild_id
     try:
         if guild_id:
             updated = automod.save_guild_config(guild_id, data)
             add_log(f"Auto-mod settings updated for guild {guild_id}.", "success")
-        else:
+        elif is_owner():
             updated = automod.save_config(data)
             add_log("Auto-mod defaults updated from dashboard.", "success")
+        else:
+            # Belt and braces: require_guild_access already refuses a signed-in
+            # admin without a guild, but the bot-wide defaults every other guild
+            # inherits must never be one missing field away from being writable.
+            return jsonify({"message": "guild_id is required"}), 400
         return jsonify({"status": "success", "config": updated}), 200
     except Exception as e:
         add_log(f"Error saving auto-mod settings: {e}", "error")
-        return jsonify({"message": f"Error saving: {e}"}), 500
+        return jsonify({"message": "Could not save the auto-mod settings"}), 500
 
 
 @app.route("/api/automod/blocked", methods=["GET"])
 @app.route("/admin/api/automod/blocked", methods=["GET"])
 @require_guild_access
 def api_blocked_images():
-    guild_id = request.args.get("guild_id", "")
+    guild_id = request.guild_id
     if not guild_id:
         return jsonify([]), 200
     return jsonify(automod.blocked_images(guild_id))
@@ -783,7 +884,7 @@ def api_blocked_images():
 @require_guild_access
 def api_remove_blocked_image():
     data = request.get_json() or {}
-    guild_id = str(data.get("guild_id", ""))
+    guild_id = request.guild_id
     entry_id = str(data.get("id", ""))
     if not guild_id or not entry_id:
         return jsonify({"message": "guild_id and id are required"}), 400
@@ -798,7 +899,7 @@ def api_remove_blocked_image():
 @require_guild_access
 def api_reset_automod():
     """Drop a guild's customisation so it follows the bot defaults again."""
-    guild_id = _requested_guild_id()
+    guild_id = request.guild_id
     if not guild_id:
         return jsonify({"message": "guild_id is required"}), 400
     automod.clear_guild_overrides(guild_id)
@@ -813,7 +914,7 @@ def api_test_automod():
     data = request.get_json() or {}
     text = str(data.get("text", ""))[:4000]
     attachments = int(data.get("attachments", 0) or 0)
-    guild_id = data.get("guild_id") or None
+    guild_id = request.guild_id or None
     cfg = automod.get_config(guild_id)
     score, reasons = automod.score_content(text, attachments=attachments, config=cfg)
     threshold = cfg.get("scam_threshold", 5)
@@ -871,7 +972,7 @@ def api_send_message():
                 title="📢 Broadcast Announcement",
                 description=content,
                 color=0x5865F2,
-                timestamp=datetime.datetime.utcnow()
+                timestamp=_utcnow()
             )
             embed.set_footer(text="Sent via Bot Dashboard",
                              icon_url=client.user.display_avatar.url if client.user.avatar else None)
@@ -883,7 +984,7 @@ def api_send_message():
         return jsonify({"status": "success"})
     except Exception as e:
         add_log(f"Failed sending to {channel_id}: {e}", "error")
-        return jsonify({"message": str(e)}), 500
+        return jsonify({"message": "Could not send the message"}), 500
 
 
 @app.route("/api/presence", methods=["POST"])
@@ -980,7 +1081,7 @@ def api_mod_actions():
 @app.route("/admin/api/mod/warnings", methods=["GET"])
 @require_guild_access
 def api_mod_warnings():
-    guild_id = request.args.get("guild_id")
+    guild_id = request.guild_id
     if not guild_id:
         return jsonify({"message": "guild_id required"}), 400
     if not client.is_ready():
@@ -1011,7 +1112,7 @@ def api_mod_warnings():
 def api_mod_action():
     data = request.get_json() or {}
     action = data.get("action")
-    guild_id = data.get("guild_id")
+    guild_id = request.guild_id
     user_id = data.get("user_id")
     reason = data.get("reason", "Issued from dashboard")
     duration = data.get("duration")  # minutes for timeout
@@ -1077,13 +1178,16 @@ def api_mod_action():
         except discord.HTTPException as e:
             return False, f"Discord error: {e}"
         except Exception as e:
-            return False, str(e)
+            # msg is returned to the caller, so keep the detail in the log only.
+            add_log(f"Moderation action {action} failed: {e}", "error")
+            return False, "The action could not be completed"
 
     fut = asyncio.run_coroutine_threadsafe(run_action(), client.loop)
     try:
         ok, msg = fut.result(timeout=15)
     except Exception as e:
-        return jsonify({"message": str(e)}), 500
+        add_log(f"Moderation action {action} failed: {e}", "error")
+        return jsonify({"message": "The action could not be completed"}), 500
 
     if not ok:
         return jsonify({"message": msg}), 400
@@ -1106,7 +1210,24 @@ def run_web():
     port = int(os.getenv("PORT", 8080))
     # 0.0.0.0 is needed inside Docker so cloudflared can reach the container; for a
     # local run set WEB_HOST=127.0.0.1 so the console isn't open to the whole network.
-    app.run(host=os.getenv("WEB_HOST", "0.0.0.0"), port=port)
+    host = os.getenv("WEB_HOST", "0.0.0.0")
+
+    # waitress rather than app.run: the Flask development server is single
+    # threaded, has no request-size or slow-client protection, and says itself
+    # that it is not for production. This runs on its own thread because
+    # discord.py owns the event loop (see auth.py), and waitress blocks the same
+    # way app.run did, so the threading model is unchanged.
+    try:
+        from waitress import serve
+    except ImportError:
+        add_log("waitress is not installed; falling back to the Flask "
+                "development server. Install requirements.txt.", "warning")
+        app.run(host=host, port=port)
+        return
+
+    serve(app, host=host, port=port, threads=4,
+          # Identify as the app, not as waitress plus its version.
+          ident=None)
 
 
 def keep_alive():
@@ -1118,6 +1239,20 @@ import secrets
 
 
 def update_env_variable(key, value):
+    """Set one key in .env, in place.
+
+    The value reaches here from the console (api_set_config), so a newline
+    in it would append everything after it as further .env lines --
+    redefining DISCORD_TOKEN or OCR_API_KEY for the next boot. Owner-only,
+    so no privilege is gained, but it is a real way to corrupt the
+    deployment from an innocuous looking field.
+    """
+    text = str(value)
+    if any(c in text for c in ("\n", "\r", "\0")):
+        raise ValueError("%s may not contain a newline" % key)
+    if not str(key).isidentifier():
+        raise ValueError("refusing to write a non-identifier key to .env")
+
     env_path = ".env"
     lines = []
     found = False
@@ -1125,7 +1260,7 @@ def update_env_variable(key, value):
         with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
-    new_line = f"{key}={value}\n"
+    new_line = f"{key}={text}\n"
     for i, line in enumerate(lines):
         if line.strip().startswith(f"{key}="):
             lines[i] = new_line
@@ -1148,11 +1283,20 @@ STREAMING_URL = os.getenv("STREAMING_URL", "https://j4fn.site")
 
 if not ADMIN_PASSWORD:
     ADMIN_PASSWORD = secrets.token_urlsafe(10)
+    # The password is never printed. `docker compose logs` is readable by anyone
+    # who reaches the host and keeps output far longer than the moment it is
+    # needed, so it goes to .env (mode 600) and is read from there.
     try:
         update_env_variable("ADMIN_PASSWORD", ADMIN_PASSWORD)
+        print("🔑 ADMIN_PASSWORD was unset: generated one and wrote it "
+              "to .env. Read it from there; it is not logged.")
     except Exception:
-        pass
-    print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
+        # Fail closed. Echoing it here is the one case that would put a live
+        # credential in the logs, so instead the console stays unreachable until
+        # someone sets the password deliberately.
+        print("⚠️  ADMIN_PASSWORD is unset and .env could not be written. "
+              "The admin console is unreachable until you set ADMIN_PASSWORD "
+              "in .env yourself and restart.")
 
 # Signs the session cookie. Generated once and kept in .env: a key that changed
 # on every boot would sign everyone out on each deploy.
@@ -1223,7 +1367,7 @@ async def send_mod_log(guild, title, description, color=0xED4245):
             title=title,
             description=description,
             color=color,
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=_utcnow(),
         )
         await ch.send(embed=embed)
     except Exception as e:
@@ -1606,7 +1750,7 @@ async def run_automod(message: discord.Message) -> bool:
 @client.event
 async def on_ready():
     global BOT_START_TIME
-    BOT_START_TIME = datetime.datetime.utcnow()
+    BOT_START_TIME = _utcnow()
     add_log(f"Logged in as {client.user} (ID: {client.user.id})", "success")
     add_log(f"Serving {len(client.guilds)} server(s)", "info")
     if not update_status.is_running():
@@ -1683,7 +1827,7 @@ async def on_member_join(member: discord.Member):
             f"📖 Type `{PREFIX}help` to see what I can do."
         ),
         color=0x57F287,
-        timestamp=datetime.datetime.utcnow(),
+        timestamp=_utcnow(),
     )
     embed.set_thumbnail(url=member.display_avatar.url)
     embed.set_footer(text=f"Member #{member.guild.member_count}")
@@ -1821,7 +1965,7 @@ async def on_message(message: discord.Message):
             await message.channel.send(f"📊 Usage: `{PREFIX}poll <question>`")
         else:
             embed = discord.Embed(title="📊 Poll", description=args, color=0x5865F2,
-                                  timestamp=datetime.datetime.utcnow())
+                                  timestamp=_utcnow())
             embed.set_footer(text=f"Poll by {message.author}")
             poll_msg = await message.channel.send(embed=embed)
             await poll_msg.add_reaction("👍")
@@ -1830,7 +1974,7 @@ async def on_message(message: discord.Message):
 
     elif cmd == "uptime":
         if BOT_START_TIME:
-            delta = datetime.datetime.utcnow() - BOT_START_TIME
+            delta = _utcnow() - BOT_START_TIME
             h, r = divmod(int(delta.total_seconds()), 3600)
             m, s = divmod(r, 60)
             d, h = divmod(h, 24)
@@ -1897,7 +2041,7 @@ async def cmd_stats(message):
     created = guild.created_at.strftime("%b %d, %Y")
 
     embed = discord.Embed(title=f"📊  {guild.name}  —  Server Stats",
-                          color=0x5865F2, timestamp=datetime.datetime.utcnow())
+                          color=0x5865F2, timestamp=_utcnow())
     if guild.icon:
         embed.set_thumbnail(url=guild.icon.url)
 
@@ -1937,7 +2081,7 @@ async def cmd_userinfo(message, args):
     warns = get_warnings(message.guild.id, member.id)
 
     embed = discord.Embed(title=f"👤 {member}", color=member.color or 0x5865F2,
-                          timestamp=datetime.datetime.utcnow())
+                          timestamp=_utcnow())
     embed.set_thumbnail(url=member.display_avatar.url)
     embed.add_field(name="ID", value=f"`{member.id}`", inline=True)
     embed.add_field(name="Nickname", value=member.nick or "None", inline=True)
@@ -2127,7 +2271,7 @@ async def cmd_warn(message, args):
         reason = "No reason provided"
     count = add_warning(message.guild.id, member.id, message.author.id, reason)
     embed = discord.Embed(title="⚠️ Warning Issued", color=0xFEE75C,
-                          timestamp=datetime.datetime.utcnow())
+                          timestamp=_utcnow())
     embed.add_field(name="Member", value=member.mention, inline=True)
     embed.add_field(name="Total Warnings", value=str(count), inline=True)
     embed.add_field(name="Reason", value=reason, inline=False)
@@ -2558,7 +2702,7 @@ async def cmd_help(message):
         title="📖 Bot Commands",
         description=f"Prefix: `{PREFIX}`",
         color=0x57F287,
-        timestamp=datetime.datetime.utcnow(),
+        timestamp=_utcnow(),
     )
 
     embed.add_field(name="🛡️ Moderation", value=(
