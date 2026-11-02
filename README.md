@@ -64,14 +64,26 @@
 
 ```text
 discord-j4fn-server-bot/
+├── .github/
+│   ├── dependabot.yml      # Weekly pip / Actions / Docker update PRs, onto dev
+│   └── workflows/
+│       ├── ci.yml          # Tests on every PR and on each push to dev
+│       └── deploy.yml      # Ships main to the server over SSH
+├── .dockerignore           # Keeps .env, .git and caches out of the image
 ├── .env.example            # Environment template for production & local dev
 ├── Dockerfile              # Container build manifest (Python 3.12-slim)
 ├── docker-compose.yml      # Orchestration for Bot & Cloudflare Tunnel
 ├── requirements.txt        # Python dependencies (discord.py, Flask, etc.)
 ├── README.md               # Production documentation & setup guide
+├── SECURITY.md             # Supported versions & how to report a vulnerability
 ├── bot.py                  # Main application (Discord Bot + Flask REST API)
+├── auth.py                 # Discord OAuth sign-in & Cloudflare Access JWT checks
 ├── automod.py              # Anti-spam & scam detection engine (scoring, flood & image tracking)
+├── test_auth.py            # Authorization boundary checks: `python test_auth.py`
 ├── test_automod.py         # Detection checks: `python test_automod.py`
+├── data/                   # Runtime state (git-ignored; mounted into the container)
+│   ├── automod.json        # Filter thresholds
+│   └── guilds/             # Per-guild settings
 ├── static/                 # Static web assets
 │   ├── favicon.ico         # Browser tab icon
 │   ├── logo.png            # 1024x1024 official J4FN red monogram logo
@@ -82,10 +94,14 @@ discord-j4fn-server-bot/
 │   └── js/
 │       ├── public.js       # Live stats fetcher & command browser scripts
 │       ├── admin.js        # Auth, Settings CRUD, Moderation & Audit scripts
-│       └── automod.js      # Anti-spam filter settings, live activity & tester
+│       ├── automod.js      # Anti-spam filter settings, live activity & tester
+│       ├── login.js        # Sign-in page: Access, Discord or admin token
+│       └── dashboard.js    # Server-admin view of the guilds you manage
 └── templates/              # HTML Templates
     ├── index.html          # Public Landing Page & Commands Showcase
-    └── admin.html          # Protected Admin Operations Console
+    ├── admin.html          # Protected Admin Operations Console
+    ├── login.html          # Sign-in page
+    └── dashboard.html      # Per-guild dashboard for server admins
 ```
 
 ---
@@ -323,6 +339,47 @@ To protect `https://bot.j4fn.site/admin` with Cloudflare Access:
    domain in the server's `.env` as `CF_ACCESS_AUD` and `CF_ACCESS_TEAM_DOMAIN`, then
    restart. The bot checks Cloudflare's signed login token against these, so Access
    sign-in stays disabled until both are set.
+
+---
+
+## 🌿 Branching & Contributing
+
+Work flows in one direction: **`feature/*` → `dev` → `main`**.
+
+| Branch | What it is | How code gets in |
+| :--- | :--- | :--- |
+| `main` | Production. Every push here deploys to the server. | Pull request from `dev` only, with a green `Tests` run. |
+| `dev` | Integration. The default place to work. | Push directly, or merge a `feature/*` pull request. |
+| `feature/*` | One change in progress. | Branch off `dev`, open a pull request back into `dev`. |
+
+```bash
+# start a change
+git switch dev && git pull
+git switch -c feature/my-change
+
+# ...commit, then open a PR into dev
+gh pr create --base dev
+
+# release: dev -> main (this deploys)
+gh pr create --base main --head dev
+```
+
+### What the rulesets enforce
+
+- **`main`** — pull request required, the `Tests` check must pass and be up to
+  date, review threads must be resolved, linear history, and no force-push or
+  deletion. Approvals are set to **0** because this is a solo-maintained repo:
+  requiring one would make every release unmergeable without a second account.
+  Raise it under *Settings → Rules* the day a second maintainer reviews.
+- **`dev`** — direct pushes are allowed on purpose, so day-to-day work is not
+  stuck behind a pull request. Force-push and deletion are still blocked, so
+  history cannot be rewritten under anyone.
+- **`feature/*`** — deliberately unrestricted. Rebasing and force-pushing your
+  own branch is normal; the gate that matters is the pull request into `dev`.
+
+CI runs on every pull request into `dev` or `main` and on every push to `dev`.
+Security scanning (CodeQL, secret scanning with push protection, and Dependabot)
+runs on the repository; see [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ---
 

@@ -40,7 +40,10 @@ PRESENCE_ROTATION_ENABLED = True
 CUSTOM_PRESENCE_STATUS = "online"
 CUSTOM_PRESENCE_ACTIVITY = "watching"
 CUSTOM_PRESENCE_TEXT = ""
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+# No default: an unset password is generated at startup (see below). A literal
+# fallback here was a known public string and would silently come back if this
+# module were ever read before that runs.
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 log_lock = threading.Lock()
 warn_lock = threading.Lock()
