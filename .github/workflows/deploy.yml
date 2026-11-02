@@ -67,5 +67,9 @@ jobs:
             set -e
             cd ~/discord-j4fn-server-bot
             git pull origin main
-            docker compose up -d --build
+            # --pull so a digest bump in the Dockerfile or compose file is
+            # actually fetched; without it Docker reuses whatever is in the
+            # host's local image store and the pin never takes effect.
+            docker compose build --pull
+            docker compose up -d
             docker image prune -f

@@ -4,22 +4,58 @@ services:
     container_name: discord-j4fn-bot
     restart: unless-stopped
     ports:
-      # cloudflared reaches the bot as bot:8080 over the compose network; set
-      # DASHBOARD_BIND_ADDRESS=127.0.0.1 to keep the origin off the public internet.
-      - "${DASHBOARD_BIND_ADDRESS:-0.0.0.0}:8080:8080"
+      # cloudflared reaches the bot as bot:8080 over the compose network, so this
+      # published port is only for local debugging on the host. The default is
+      # 127.0.0.1, not 0.0.0.0: Docker inserts its own iptables chain ahead of
+      # ufw, so a host firewall will not close a port published to all
+      # interfaces -- only the cloud security list would, and failing closed here
+      # is cheaper than relying on that. Host port 8080 is this bot's;
+      # the YouTube status bot uses 8081.
+      - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:8080:8080"
     volumes:
+      # Not :ro -- the bot rewrites .env to persist a generated password or
+      # secret key, and settings changed from the console.
       - ./data:/app/data
       - ./.env:/app/.env
     environment:
       - PORT=8080
+    # 1 GB of RAM shared with a sibling bot, and Pillow decodes untrusted
+    # attachments in-process: without a cap, one decompression bomb lets the
+    # kernel OOM killer pick the victim, which could be cloudflared or sshd
+    # rather than this. Baseline use is ~65 MiB.
+    mem_limit: 384m
+    cpus: "0.75"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      # restart: unless-stopped plus the default unbounded json-file driver means
+      # a crash loop fills the disk.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned: with restart: unless-stopped, `latest` means the next rebuild
+    # silently replaces the component terminating all public traffic, with no way
+    # to reproduce or roll back. Dependabot proposes the bumps.
+    image: cloudflare/cloudflared:2026.10.7@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba
     container_name: cloudflared-j4fn-bot
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    mem_limit: 128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - bot
-

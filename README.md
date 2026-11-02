@@ -268,7 +268,7 @@ checkboxes are on the dashboard card.
 | `TUNNEL_TOKEN` | **Yes** (Prod) | — | Cloudflare Zero Trust Tunnel connector token |
 | `CF_ACCESS_TEAM_DOMAIN` | **Yes** (Prod) | — | Zero Trust team domain, e.g. `damp-leaf-bc5b.cloudflareaccess.com` |
 | `CF_ACCESS_AUD` | **Yes** (Prod) | — | AUD tag of the Access application. Without both, Cloudflare sign-in is disabled and only the admin password works |
-| `DASHBOARD_BIND_ADDRESS` | Optional | `0.0.0.0` | Host address Docker publishes port 8080 on. `127.0.0.1` keeps the origin reachable only through the tunnel |
+| `DASHBOARD_BIND_ADDRESS` | Optional | `127.0.0.1` | Host address Docker publishes port 8080 on. The default keeps the origin reachable only through the tunnel; set `0.0.0.0` only if you really want it on the network |
 | `PREFIX` | Optional | `$` | Default command prefix |
 | `WELCOME_CHANNEL_ID` | Optional | `""` | Channel ID for welcome greeting embeds |
 | `MOD_LOG_CHANNEL_ID` | Optional | `""` | Channel ID for moderation audit logs |
