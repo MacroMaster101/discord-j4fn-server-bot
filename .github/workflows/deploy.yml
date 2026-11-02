@@ -1,4 +1,4 @@
-name: Deploy Bot to AWS EC2
+name: Deploy Bot to Oracle Cloud
 
 # main is the production branch: anything landing here ships. Reaching it should
 # only ever happen through a reviewed PR from dev.
@@ -55,6 +55,8 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
+          # EC2_* secret names are carried over from the old AWS host; they now
+          # hold the Oracle Cloud instance's address, user and SSH key.
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
