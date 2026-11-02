@@ -15,6 +15,7 @@
   [![Oracle Cloud](https://img.shields.io/badge/Oracle_Cloud-Compute-F80000?style=for-the-badge&logo=oracle&logoColor=white)](https://www.oracle.com/cloud/)
   [![Docker Compose](https://img.shields.io/badge/Docker-Compose_Build-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
   [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 
 </div>
 
@@ -66,7 +67,10 @@
 discord-j4fn-server-bot/
 ├── .github/
 │   ├── dependabot.yml      # Weekly pip / Actions / Docker update PRs, onto dev
+│   ├── pull_request_template.md
+│   ├── ISSUE_TEMPLATE/     # Bug report & feature request forms
 │   └── workflows/
+│       ├── branch-flow.yml # Enforces feature/* -> dev -> main on every PR
 │       ├── ci.yml          # Tests on every PR and on each push to dev
 │       └── deploy.yml      # Ships main to the server over SSH
 ├── .dockerignore           # Keeps .env, .git and caches out of the image
@@ -75,7 +79,9 @@ discord-j4fn-server-bot/
 ├── docker-compose.yml      # Orchestration for Bot & Cloudflare Tunnel
 ├── requirements.txt        # Python dependencies (discord.py, Flask, etc.)
 ├── README.md               # Production documentation & setup guide
+├── CONTRIBUTING.md         # Branch flow, local setup, checks to run
 ├── SECURITY.md             # Supported versions & how to report a vulnerability
+├── LICENSE                 # MIT
 ├── bot.py                  # Main application (Discord Bot + Flask REST API)
 ├── auth.py                 # Discord OAuth sign-in & Cloudflare Access JWT checks
 ├── automod.py              # Anti-spam & scam detection engine (scoring, flood & image tracking)
@@ -383,5 +389,18 @@ runs on the repository; see [SECURITY.md](SECURITY.md) to report a vulnerability
 
 ---
 
+## 🤝 Contributing
+
+Work flows `feature/* → dev → main`; see [CONTRIBUTING.md](CONTRIBUTING.md) for
+the branch rules, local setup and the checks to run before opening a pull
+request. Security problems go through [SECURITY.md](SECURITY.md) privately,
+not a public issue.
+
+---
+
 ## 📜 License
-© 2026 JUST FOR FUN (`j4fn.site`). All rights reserved.
+
+[MIT](LICENSE) © 2026 MacroMaster101.
+
+The licence covers the code. The **J4FN name, the logo in `static/` and the
+`j4fn.site` domain are not included** — reuse the bot, not the branding.

@@ -1,0 +1,32 @@
+name: Branch Flow
+
+# Enforces the branch flow: feature/* -> dev -> main.
+# The ruleset on main can require this check before merging.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+
+permissions: {}
+
+jobs:
+  branch-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          echo "PR: $HEAD -> $BASE"
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "dev" ]; then
+            echo "::error::Only dev can be merged into main (got '$HEAD')."
+            exit 1
+          fi
+          if [ "$BASE" = "dev" ] && [[ "$HEAD" != feature/* && "$HEAD" != dependabot/* ]]; then
+            echo "::error::Only feature/* (or Dependabot) branches can be merged into dev (got '$HEAD')."
+            exit 1
+          fi
+          echo "Branch flow OK"
