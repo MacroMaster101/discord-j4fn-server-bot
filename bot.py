@@ -226,10 +226,36 @@ def _cloudflare_identity():
 
 
 def _token_matches():
+    """True when the request carries the admin token.
+
+    The throttle lives here, not only in api_login, because every bearer-token
+    check in the app comes through this function. /api/auth-check is
+    unauthenticated by design and answers whether a token is good, so without a
+    counter here it was an unlimited password oracle -- reachable from the
+    internet, since the bare /api/... mount sits outside the Access app. The
+    six-failure lockout on the login form was decorative while that stood.
+
+    The helpers below are defined further down the module; these names resolve
+    at call time, which is always inside a request.
+    """
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return False
-    return secrets.compare_digest(auth_header[len("Bearer "):], str(ADMIN_PASSWORD))
+
+    offered = auth_header[len("Bearer "):]
+    ip = _client_ip()
+    now = time.time()
+    with login_lock:
+        # Locked out: do not compare at all. Answering "wrong" without checking
+        # is what stops the lockout itself from leaking whether a guess was
+        # right.
+        if _login_blocked(ip, now):
+            return False
+        if secrets.compare_digest(offered, str(ADMIN_PASSWORD)):
+            _login_failures.pop(ip, None)
+            return True
+        _record_login_failure(ip, now)
+    return False
 
 
 def is_owner():

@@ -53,7 +53,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        # Pinned to a commit, not the tag: a tag can be moved, and this step
+        # receives the production SSH key, so a compromised release would hand
+        # over the whole host. Dependabot proposes the bumps.
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           # EC2_* secret names are carried over from the old AWS host; they now
           # hold the Oracle Cloud instance's address, user and SSH key.

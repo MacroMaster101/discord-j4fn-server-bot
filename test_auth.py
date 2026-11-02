@@ -367,6 +367,40 @@ check("a real snowflake is still accepted",
       not _guild_file_rejects(ALICE_GUILD))
 
 
+print("\nGuessing the admin token is throttled everywhere, not just at /api/login")
+# /api/auth-check is unauthenticated and says whether a bearer token is good, so
+# it used to be an unlimited password oracle: the lockout only counted failures
+# inside api_login. The counter now lives in _token_matches, which every token
+# check goes through.
+with app.test_client() as c:
+    bot._login_failures.clear()
+    bot._login_lockouts.clear()
+    try:
+        reported = None
+        for _ in range(bot.LOGIN_MAX_ATTEMPTS + 2):
+            r = c.get("/api/auth-check",
+                      headers={"Authorization": "Bearer wrong-token"})
+            reported = r.get_json().get("authenticated")
+        check("a wrong token never reports authenticated",
+              reported is False, "-> %r" % (reported,))
+
+        # The shared counter is the point: once the oracle has been hammered,
+        # even the right password is refused, so an attacker cannot tell a
+        # correct guess from a locked-out one.
+        r = c.post("/api/login", json={"password": bot.ADMIN_PASSWORD})
+        check("the correct password is refused while locked out",
+              r.status_code == 429, "-> %d" % r.status_code)
+
+        bot._login_failures.clear()
+        bot._login_lockouts.clear()
+        r = c.post("/api/login", json={"password": bot.ADMIN_PASSWORD})
+        check("and works again once the lockout has cleared",
+              r.status_code == 200, "-> %d" % r.status_code)
+    finally:
+        bot._login_failures.clear()
+        bot._login_lockouts.clear()
+
+
 shutil.rmtree(automod.GUILD_DIR, ignore_errors=True)
 
 print("\n%d checks failed" % len(FAILURES))
