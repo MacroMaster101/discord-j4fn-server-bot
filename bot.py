@@ -343,8 +343,12 @@ def require_guild_access(f):
     def decorated(*args, **kwargs):
         try:
             guild_id = _requested_guild_id()
-        except GuildConflict as exc:
-            return jsonify({"message": str(exc)}), 400
+        except GuildConflict:
+            # A fixed message, not the exception: what the caller needs to know
+            # is that the request contradicts itself, nothing about our internals.
+            return jsonify({
+                "message": "guild_id differs between the query string and the body",
+            }), 400
 
         # The one guild this request is about. Handlers must read this and never
         # the request again, so that what was authorized is what is acted on.
@@ -1223,17 +1227,20 @@ STREAMING_URL = os.getenv("STREAMING_URL", "https://j4fn.site")
 
 if not ADMIN_PASSWORD:
     ADMIN_PASSWORD = secrets.token_urlsafe(10)
-    # Printing the password would put it in `docker compose logs`, which is
-    # readable by anyone who reaches the host and is kept far longer than the
-    # moment it is needed. It goes to .env instead, mode 600; it is only echoed
-    # when that write failed and there would otherwise be no way to sign in.
+    # The password is never printed. `docker compose logs` is readable by anyone
+    # who reaches the host and keeps output far longer than the moment it is
+    # needed, so it goes to .env (mode 600) and is read from there.
     try:
         update_env_variable("ADMIN_PASSWORD", ADMIN_PASSWORD)
         print("🔑 ADMIN_PASSWORD was unset: generated one and wrote it "
-              "to .env. Read it from there (it is not logged).")
+              "to .env. Read it from there; it is not logged.")
     except Exception:
-        print(f"🔑 Auto-generated ADMIN_PASSWORD: {ADMIN_PASSWORD}")
-        print("⚠️  Could not write it to .env -- copy it now; it is not stored.")
+        # Fail closed. Echoing it here is the one case that would put a live
+        # credential in the logs, so instead the console stays unreachable until
+        # someone sets the password deliberately.
+        print("⚠️  ADMIN_PASSWORD is unset and .env could not be written. "
+              "The admin console is unreachable until you set ADMIN_PASSWORD "
+              "in .env yourself and restart.")
 
 # Signs the session cookie. Generated once and kept in .env: a key that changed
 # on every boot would sign everyone out on each deploy.
