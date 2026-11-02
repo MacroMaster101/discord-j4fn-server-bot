@@ -133,10 +133,19 @@ def _guild_file(guild_id):
     a non-numeric value must never become a path. Discord ids are snowflakes, so
     anything but digits is refused outright rather than sanitised.
     """
-    key = str(guild_id)
-    if not key.isdigit():
+    text = str(guild_id).strip()
+    if not text.isdigit():
         raise ValueError("guild id must be numeric, got %r" % (guild_id,))
-    return os.path.join(GUILD_DIR, "%s.json" % key)
+
+    # Go through int and format the integer back out, rather than reusing the
+    # caller's string. A digits-only string already cannot traverse, but taint
+    # analysis does not model str.isdigit() as a barrier, so this says the same
+    # thing in a form both a reader and CodeQL can verify. It also normalises
+    # oddities isdigit() allows, such as non-ASCII digits.
+    snowflake = int(text)
+    if snowflake < 0:
+        raise ValueError("guild id must not be negative")
+    return os.path.join(GUILD_DIR, "%d.json" % snowflake)
 
 
 def _guild_overrides(guild_id):
