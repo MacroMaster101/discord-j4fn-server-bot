@@ -1,0 +1,42 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `$warn @someone spamming`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from the console Logs panel or `docker compose logs bot`. Remove any tokens, keys or passwords first.
+      render: text
+  - type: input
+    id: environment
+    attributes:
+      label: Where is it running?
+      placeholder: Docker on Ubuntu, local Windows, ...
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      options:
+        - Moderation commands
+        - Anti-spam / scam filter
+        - Admin console or dashboard
+        - Discord sign-in / Cloudflare Access
+        - Welcome embeds or presence
+        - Something else
