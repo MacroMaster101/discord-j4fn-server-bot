@@ -20,7 +20,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Later steps run repository code (the test suites, `import bot`), so
           # do not leave the job's token sitting in .git/config for them.
