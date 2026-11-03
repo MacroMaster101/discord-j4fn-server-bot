@@ -98,7 +98,6 @@ discord-j4fn-server-bot/
 ├── static/                 # Static web assets
 │   ├── favicon.ico         # Browser tab icon
 │   ├── logo.png            # 1024x1024 official J4FN red monogram logo
-│   ├── logo.jpg            # Original image asset
 │   ├── css/
 │   │   ├── public.css      # Styling for Public Landing Page
 │   │   └── admin.css       # Styling for Protected Admin Operations Console
@@ -281,9 +280,17 @@ checkboxes are on the dashboard card.
 | `CF_ACCESS_AUD` | **Yes** (Prod) | — | AUD tag of the Access application. Without both, Cloudflare sign-in is disabled and only the admin password works |
 | `DASHBOARD_BIND_ADDRESS` | Optional | `127.0.0.1` | Host address Docker publishes port 8080 on. The default keeps the origin reachable only through the tunnel; set `0.0.0.0` only if you really want it on the network |
 | `PREFIX` | Optional | `$` | Default command prefix |
+| `STREAMING_URL` | Optional | `https://j4fn.site` | URL behind the bot's streaming status |
 | `WELCOME_CHANNEL_ID` | Optional | `""` | Channel ID for welcome greeting embeds |
 | `MOD_LOG_CHANNEL_ID` | Optional | `""` | Channel ID for moderation audit logs |
 | `MUTED_ROLE_NAME` | Optional | `Muted` | Role name assigned during timeouts |
+| `DISCORD_CLIENT_ID` | Optional | — | OAuth2 client ID. With the secret and redirect URI, enables Discord sign-in at `/dashboard`; leave blank to keep it off |
+| `DISCORD_CLIENT_SECRET` | Optional | — | OAuth2 client secret, from the same Developer Portal page |
+| `OAUTH_REDIRECT_URI` | Optional | — | Must match a Redirect exactly in the app's OAuth2 settings, e.g. `https://bot.j4fn.site/auth/discord/callback` |
+| `FLASK_SECRET_KEY` | Optional | *Auto-generated* | Signs the session cookie. Generated into `.env` on first boot; keep it stable or every deploy signs people out |
+| `COOKIE_SECURE` | Optional | `1` | Set `0` only for plain-HTTP local development, so the session cookie is sent without TLS |
+| `OCR_PROVIDER` | Optional | — | `ocrspace` or `google` to let the filter read text inside posted images. Blank keeps OCR off |
+| `OCR_API_KEY` | Optional | — | Key for the provider above. Both must be set **and** `$automod set ocr_enabled on` run before any call is made |
 
 ---
 
