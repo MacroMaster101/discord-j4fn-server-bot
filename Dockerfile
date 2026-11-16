@@ -2,7 +2,7 @@
 # reproducible and a base-image bump is a deliberate commit. The deploy runs
 # `docker compose build --pull`, so this digest is what actually gets fetched.
 # Currently Python 3.12.16.
-FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
